@@ -1,0 +1,233 @@
+export type BackgroundType = 'single-image' | 'multi-image' | 'single-video' | 'multi-video';
+export type ScaleMode = 'cover' | 'contain' | 'stretch';
+export type TransitionType = 'cut' | 'fade' | 'crossfade';
+
+export interface BackgroundItem {
+  id: string;
+  name: string;
+  type: 'image' | 'video';
+  url: string;
+  file?: File;
+  duration?: number;
+  trimStart?: number;
+  trimEnd?: number;
+}
+
+export interface BackgroundConfig {
+  type: BackgroundType;
+  items: BackgroundItem[];
+  transition: TransitionType;
+  transitionDuration: number;
+  scaleMode: ScaleMode;
+  brightness: number; // 0.0 to 2.0, default 1.0
+  followBeat: boolean;
+  beatSensitivity: number;
+}
+
+export type ParticlePreset = 'floating-dust' | 'confetti' | 'bokeh' | 'snow' | 'sparks';
+
+export interface ParticleConfig {
+  enabled: boolean;
+  preset: ParticlePreset;
+  count: number;
+  size: number;
+  speed: number;
+  color: string;
+  opacity: number;
+  gravity: 'up' | 'down' | 'float' | 'radial';
+  followBeat: boolean;
+  beatSensitivity: number;
+}
+
+export type SpectrumStyle = 'bars' | 'waveform' | 'circular' | 'radial-bars';
+
+export interface SpectrumConfig {
+  enabled: boolean;
+  style: SpectrumStyle;
+  barCount: number;
+  color: string;
+  secondaryColor: string;
+  height: number;
+  radius: number;
+  opacity: number;
+  mirror: boolean;
+  followBeat: boolean;
+  beatSensitivity: number;
+  x: number;
+  y: number;
+  scale: number;
+}
+
+export type LyricStyle = 'karaoke' | 'fade-line' | 'typewriter' | 'bounce-word' | 'bottom-bar';
+
+export interface LyricSegment {
+  id: string;
+  text: string;
+  start: number;
+  end: number;
+  words?: Array<{
+    word: string;
+    start: number;
+    end: number;
+  }>;
+}
+
+export type OverlayAnimationType = 'none' | 'pulse-beat' | 'floating' | 'shimmer' | 'typewriter' | 'glow-pulse';
+
+export interface LyricConfig {
+  enabled: boolean;
+  style: LyricStyle;
+  fontFamily: string;
+  fontSize: number;
+  color: string;
+  highlightColor: string;
+  position: 'custom' | 'top' | 'center' | 'bottom';
+  x: number;
+  y: number;
+  animation?: OverlayAnimationType;
+  followBeat: boolean;
+  beatSensitivity: number;
+}
+
+export interface ImageOverlayItem {
+  id: string;
+  name: string;
+  url: string;
+  file?: File;
+  x: number;
+  y: number;
+  scale: number;
+  opacity: number;
+  rotation: number;
+  animation?: OverlayAnimationType;
+  followBeat: boolean;
+  beatSensitivity: number;
+}
+
+export type VideoBlendMode = 'source-over' | 'screen' | 'lighten' | 'multiply' | 'overlay' | 'color-dodge';
+
+export interface VideoOverlayItem {
+  id: string;
+  name: string;
+  url: string;
+  file?: File;
+  x: number;
+  y: number;
+  scale: number;
+  opacity: number;
+  blendMode: VideoBlendMode;
+  chromaKey: {
+    enabled: boolean;
+    color: string;
+    similarity: number;
+    smoothness: number;
+  };
+  animation?: OverlayAnimationType;
+  followBeat: boolean;
+  beatSensitivity: number;
+}
+
+export type TextAnimationType = 'none' | 'pulse-beat' | 'floating' | 'shimmer' | 'typewriter' | 'glow-pulse';
+
+export interface TextOverlayItem {
+  id: string;
+  text: string;
+  fontFamily: string;
+  fontSize: number;
+  color: string;
+  accentColor: string;
+  x: number;
+  y: number;
+  alignment: 'left' | 'center' | 'right';
+  opacity: number;
+  rotation: number;
+  shadow: boolean;
+  shadowColor: string;
+  animation: TextAnimationType;
+  followBeat: boolean;
+  beatSensitivity: number;
+}
+
+export type NowPlayingAnimationType = 'glow-badge' | 'bounce-pulse' | 'karaoke-gradient' | 'equalizer-indicator' | 'sliding-accent';
+
+export interface TracklistOverlayConfig {
+  enabled: boolean;
+  title: string;
+  showTitle: boolean;
+  fontFamily: string;
+  fontSize: number;
+  titleFontSize: number;
+  color: string;
+  activeColor: string;
+  accentColor: string;
+  x: number;
+  y: number;
+  alignment: 'left' | 'center' | 'right';
+  lineSpacing: number;
+  opacity: number;
+  shadow: boolean;
+  shadowColor: string;
+  nowPlayingAnimation: NowPlayingAnimationType;
+  followBeat: boolean;
+  beatSensitivity: number;
+  showNumbers: boolean;
+  showDuration: boolean;
+}
+
+export interface AudioTrackItem {
+  id: string;
+  name: string;
+  fileSize: number;
+  duration: number;
+  url?: string;
+  file?: File;
+  audioBuffer?: AudioBuffer;
+}
+
+export interface BeatMap {
+  duration: number;
+  sampleRate: number;
+  bpm?: number;
+  beats: number[];
+  spectralFlux: Float32Array | number[];
+}
+
+export interface ExportSettings {
+  resolution: '1080x1920' | '1920x1080' | '1080x1080' | '720x1280' | '1280x720';
+  width: number;
+  height: number;
+  fps: 30 | 60;
+  format: 'mp4' | 'webm';
+  videoBitrate: number;
+  audioBitrate: number;
+}
+
+export interface ProjectConfig {
+  id: string;
+  title: string;
+  createdAt: number;
+  updatedAt: number;
+  audio: {
+    fileName: string;
+    fileSize: number;
+    duration: number;
+    url?: string;
+    beatSensitivity: number;
+    tracks: AudioTrackItem[];
+  };
+  background: BackgroundConfig;
+  overlays: {
+    particle: ParticleConfig;
+    spectrum: SpectrumConfig;
+    images: ImageOverlayItem[];
+    videos: VideoOverlayItem[];
+    texts: TextOverlayItem[];
+    tracklist?: TracklistOverlayConfig;
+    layerOrder: Array<'background' | 'videos' | 'images' | 'texts' | 'spectrum' | 'particle' | 'lyrics'>;
+  };
+  lyrics: {
+    segments: LyricSegment[];
+    config: LyricConfig;
+  };
+  exportSettings: ExportSettings;
+}
