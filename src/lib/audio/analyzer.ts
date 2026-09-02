@@ -2,19 +2,6 @@ import type { BeatMap } from '../types/project';
 
 export class AudioAnalyzer {
   /**
-   * Decodes an audio File into an AudioBuffer using OfflineAudioContext.
-   */
-  static async decodeAudioFile(file: File): Promise<AudioBuffer> {
-    const arrayBuffer = await file.arrayBuffer();
-    const offlineCtx = new (window.OfflineAudioContext || (window as any).webkitOfflineAudioContext)(
-      2,
-      44100 * 1,
-      44100
-    );
-    return await offlineCtx.decodeAudioData(arrayBuffer);
-  }
-
-  /**
    * Encodes an AudioBuffer into an optimized 16kHz mono WAV Blob suitable for Whisper API (Max 25MB).
    */
   static audioBufferToWavBlob(buffer: AudioBuffer, targetSampleRate: number = 16000): Blob {

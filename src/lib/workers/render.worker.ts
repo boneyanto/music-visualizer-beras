@@ -11,7 +11,7 @@ import { SpectrumRenderer } from '../engine/spectrum';
 import { LyricRenderer } from '../engine/lyrics';
 import { textOverlayManager } from '../engine/textOverlay.svelte';
 import { tracklistOverlayRenderer } from '../engine/tracklistOverlay.svelte';
-import type { ProjectConfig } from '../types/project';
+import type { ProjectConfig, ImageOverlayItem } from '../types/project';
 
 interface RenderRequest {
   type: 'START_RENDER';
@@ -43,40 +43,12 @@ self.onmessage = async (e: MessageEvent<RenderRequest | { type: 'CANCEL' }>) => 
       return;
     }
 
-    // Preload background images as ImageBitmaps in Web Worker
-    const bgBitmaps = new Map<string, ImageBitmap>();
+    // 1. Preload Bitmaps (Zero-copy hardware textures)
     const bgItems = project.background?.items || [];
-    for (const item of bgItems) {
-      if (item.type === 'image' && item.url) {
-        try {
-          const resp = await fetch(item.url);
-          const blob = await resp.blob();
-          const bmp = await createImageBitmap(blob);
-          bgBitmaps.set(item.id, bmp);
-        } catch (err) {
-          console.warn('Could not load background image bitmap in worker:', err);
-        }
-      }
-    }
+    const bgBitmaps = await preloadBitmaps(bgItems);
+    const overlayBitmaps = await preloadBitmaps(project.overlays?.images);
 
-    // Preload overlay images as ImageBitmaps
-    const overlayBitmaps = new Map<string, ImageBitmap>();
-    if (project.overlays?.images) {
-      for (const item of project.overlays.images) {
-        if (item.url) {
-          try {
-            const resp = await fetch(item.url);
-            const blob = await resp.blob();
-            const bmp = await createImageBitmap(blob);
-            overlayBitmaps.set(item.id, bmp);
-          } catch (err) {
-            console.warn('Could not load overlay image bitmap in worker:', err);
-          }
-        }
-      }
-    }
-
-    // Initialize Render Engines
+    // 2. Initialize Render Engines
     const particles = new ParticleSystem(width, height);
     const spectrum = new SpectrumRenderer();
     const lyrics = new LyricRenderer();
@@ -139,64 +111,14 @@ self.onmessage = async (e: MessageEvent<RenderRequest | { type: 'CANCEL' }>) => 
       }
     };
 
-    // WebCodecs AudioEncoder
-    let audioElementEncoder: AudioEncoder | null = null;
+    // 3. WebCodecs AudioEncoder
     if (hasAudio && audioSource && typeof AudioEncoder !== 'undefined') {
-      try {
-        audioElementEncoder = new AudioEncoder({
-          output: (chunk, meta) => {
-            try {
-              const packet = EncodedPacket.fromEncodedChunk(chunk);
-              audioSource!.add(packet, meta);
-            } catch (err) {
-              console.warn('Audio packet add error:', err);
-            }
-          },
-          error: (e) => {
-            console.warn('AudioEncoder error:', e);
-          },
-        });
-
-        audioElementEncoder.configure({
-          codec: 'mp4a.40.2',
-          sampleRate: sampleRate || 44100,
-          numberOfChannels: e.data.audioRawData!.length,
-          bitrate: project.exportSettings.audioBitrate || 192_000,
-        });
-
-        const channels = e.data.audioRawData!;
-        const numChannels = channels.length;
-        const totalAudioSamples = channels[0].length;
-        const chunkSize = 2048;
-
-        let sampleOffset = 0;
-        while (sampleOffset < totalAudioSamples) {
-          const count = Math.min(chunkSize, totalAudioSamples - sampleOffset);
-          const planarBuffer = new Float32Array(count * numChannels);
-          for (let ch = 0; ch < numChannels; ch++) {
-            planarBuffer.set(channels[ch].subarray(sampleOffset, sampleOffset + count), ch * count);
-          }
-
-          const audioData = new AudioData({
-            format: 'f32-planar',
-            sampleRate: sampleRate || 44100,
-            numberOfFrames: count,
-            numberOfChannels: numChannels,
-            timestamp: Math.round((sampleOffset / (sampleRate || 44100)) * 1_000_000),
-            data: planarBuffer,
-          });
-
-          audioElementEncoder.encode(audioData);
-          audioData.close();
-
-          sampleOffset += count;
-        }
-
-        await audioElementEncoder.flush();
-        audioElementEncoder.close();
-      } catch (audioErr) {
-        console.warn('Audio encoding skipped/failed:', audioErr);
-      }
+      await encodeAudioTrack(
+        audioSource,
+        e.data.audioRawData!,
+        sampleRate || 44100,
+        project.exportSettings.audioBitrate || 192_000
+      );
     }
 
     const fallbackFreq = new Uint8Array(128);
@@ -249,112 +171,27 @@ self.onmessage = async (e: MessageEvent<RenderRequest | { type: 'CANCEL' }>) => 
         ctx.fillStyle = '#0a0a0c';
         ctx.fillRect(0, 0, width, height);
 
-        if (totalBgItems > 0) {
-          let activeItem = bgItems[0];
-          let nextItem: any = null;
-          let blendFactor = 0;
-
-          if (totalBgItems > 1 && project.background.type.startsWith('multi')) {
-            const itemDuration = bgItems[0]?.duration || 5.0;
-            const cycleIndex = Math.floor(currentTime / itemDuration) % totalBgItems;
-            const progressInItem = (currentTime % itemDuration) / itemDuration;
-
-            activeItem = bgItems[cycleIndex];
-            nextItem = bgItems[(cycleIndex + 1) % totalBgItems];
-
-            const transDurationNorm = (project.background.transitionDuration || 1.0) / itemDuration;
-            if (progressInItem > 1 - transDurationNorm && project.background.transition === 'crossfade') {
-              blendFactor = (progressInItem - (1 - transDurationNorm)) / transDurationNorm;
-            }
-          }
-
-          const bmp = bgBitmaps.get(activeItem.id);
-          if (bmp) {
-            const bgSens = project.background.beatSensitivity ?? 1.0;
-            const bgBeat = 1.0 + (rawBeatFactor - 1.0) * bgSens;
-            const scaleFactor = project.background.followBeat ? 1 + (bgBeat - 1) * 0.03 : 1.0;
-
-            const targetScale = Math.max(width / bmp.width, height / bmp.height) * scaleFactor;
-            const drawW = bmp.width * targetScale;
-            const drawH = bmp.height * targetScale;
-            const drawX = (width - drawW) / 2;
-            const drawY = (height - drawH) / 2;
-
-            ctx.save();
-            ctx.globalAlpha = 1.0 - (blendFactor > 0 ? blendFactor * 0.5 : 0);
-            if (bgBrightness !== 1.0) {
-              ctx.filter = `brightness(${bgBrightness})`;
-            }
-            ctx.drawImage(bmp, drawX, drawY, drawW, drawH);
-            ctx.restore();
-          }
-
-          // Crossfade next slide
-          if (nextItem && blendFactor > 0 && project.background.transition === 'crossfade') {
-            const nextBmp = bgBitmaps.get(nextItem.id);
-            if (nextBmp) {
-              const targetScale = Math.max(width / nextBmp.width, height / nextBmp.height);
-              const drawW = nextBmp.width * targetScale;
-              const drawH = nextBmp.height * targetScale;
-              const drawX = (width - drawW) / 2;
-              const drawY = (height - drawH) / 2;
-
-              ctx.save();
-              ctx.globalAlpha = blendFactor;
-              if (bgBrightness !== 1.0) {
-                ctx.filter = `brightness(${bgBrightness})`;
-              }
-              ctx.drawImage(nextBmp, drawX, drawY, drawW, drawH);
-              ctx.restore();
-            }
-          }
-        }
+        drawBackground(
+          ctx,
+          width,
+          height,
+          project.background,
+          bgItems,
+          currentTime,
+          rawBeatFactor,
+          bgBitmaps
+        );
 
         // 4. Render Image Overlays
-        if (project.overlays?.images) {
-          const scaleFactor = Math.min(width / 1920, height / 1080);
-          for (const imgItem of project.overlays.images) {
-            const bmp = overlayBitmaps.get(imgItem.id);
-            if (bmp) {
-              const sens = imgItem.beatSensitivity ?? 1.0;
-              const imgBeat = 1.0 + (rawBeatFactor - 1.0) * sens;
-
-              const posX = (imgItem.x ?? 0.5) * width;
-              let posY = (imgItem.y ?? 0.5) * height;
-              let drawAlpha = imgItem.opacity ?? 1.0;
-              let animScale = 1.0;
-
-              // Animation options
-              if (imgItem.animation === 'floating') {
-                posY += Math.sin(currentTime * 2.5 + (imgItem.x ?? 0.5) * 10) * 12 * scaleFactor;
-              } else if (imgItem.animation === 'pulse-beat') {
-                if (imgItem.followBeat) {
-                  animScale = 1.0 + (imgBeat - 1.0) * 0.15;
-                } else {
-                  animScale = 1.0 + Math.sin(currentTime * 3) * 0.05;
-                }
-              } else if (imgItem.animation === 'shimmer') {
-                drawAlpha *= (0.6 + Math.sin(currentTime * 4) * 0.4);
-              } else if (imgItem.animation === 'glow-pulse') {
-                drawAlpha *= (0.75 + Math.sin(currentTime * 5) * 0.25);
-              }
-
-              const baseScale = (imgItem.scale ?? 1.0) * scaleFactor;
-              const beatScale = imgItem.followBeat ? 1 + (imgBeat - 1) * 0.25 : 1.0;
-              const scale = baseScale * beatScale * animScale;
-
-              const drawW = bmp.width * scale;
-              const drawH = bmp.height * scale;
-
-              ctx.save();
-              ctx.globalAlpha = drawAlpha;
-              ctx.translate(posX, posY);
-              if (imgItem.rotation) ctx.rotate((imgItem.rotation * Math.PI) / 180);
-              ctx.drawImage(bmp, -drawW / 2, -drawH / 2, drawW, drawH);
-              ctx.restore();
-            }
-          }
-        }
+        drawImageOverlays(
+          ctx,
+          width,
+          height,
+          project.overlays?.images,
+          currentTime,
+          rawBeatFactor,
+          overlayBitmaps
+        );
 
         // 5. Render Text Overlays
         if (project.overlays?.texts && project.overlays.texts.length > 0) {
@@ -474,4 +311,228 @@ self.onmessage = async (e: MessageEvent<RenderRequest | { type: 'CANCEL' }>) => 
     }
   }
 };
+
+/**
+ * Preload background & overlay images as ImageBitmaps in Web Worker (Zero-copy hardware textures)
+ */
+async function preloadBitmaps(
+  items: Array<{ id: string; type?: string; url?: string }> | undefined
+): Promise<Map<string, ImageBitmap>> {
+  const map = new Map<string, ImageBitmap>();
+  if (!items) return map;
+
+  for (const item of items) {
+    if ((!item.type || item.type === 'image') && item.url) {
+      try {
+        const resp = await fetch(item.url);
+        const blob = await resp.blob();
+        const bmp = await createImageBitmap(blob);
+        map.set(item.id, bmp);
+      } catch (err) {
+        console.warn('Could not load image bitmap in worker:', err);
+      }
+    }
+  }
+  return map;
+}
+
+/**
+ * Encodes audio PCM channels to AAC format via WebCodecs AudioEncoder
+ */
+async function encodeAudioTrack(
+  audioSource: EncodedAudioPacketSource,
+  channels: Float32Array[],
+  sampleRate: number,
+  bitrate: number
+): Promise<void> {
+  try {
+    const encoder = new AudioEncoder({
+      output: (chunk, meta) => {
+        try {
+          const packet = EncodedPacket.fromEncodedChunk(chunk);
+          audioSource.add(packet, meta);
+        } catch (err) {
+          console.warn('Audio packet add error:', err);
+        }
+      },
+      error: (e) => {
+        console.warn('AudioEncoder error:', e);
+      },
+    });
+
+    encoder.configure({
+      codec: 'mp4a.40.2',
+      sampleRate,
+      numberOfChannels: channels.length,
+      bitrate,
+    });
+
+    const numChannels = channels.length;
+    const totalAudioSamples = channels[0].length;
+    const chunkSize = 2048;
+
+    let sampleOffset = 0;
+    while (sampleOffset < totalAudioSamples) {
+      const count = Math.min(chunkSize, totalAudioSamples - sampleOffset);
+      const planarBuffer = new Float32Array(count * numChannels);
+      for (let ch = 0; ch < numChannels; ch++) {
+        planarBuffer.set(channels[ch].subarray(sampleOffset, sampleOffset + count), ch * count);
+      }
+
+      const audioData = new AudioData({
+        format: 'f32-planar',
+        sampleRate,
+        numberOfFrames: count,
+        numberOfChannels: numChannels,
+        timestamp: Math.round((sampleOffset / sampleRate) * 1_000_000),
+        data: planarBuffer,
+      });
+
+      encoder.encode(audioData);
+      audioData.close();
+
+      sampleOffset += count;
+    }
+
+    await encoder.flush();
+    encoder.close();
+  } catch (audioErr) {
+    console.warn('Audio encoding skipped/failed:', audioErr);
+  }
+}
+
+/**
+ * Draws background image or slideshow transition
+ */
+function drawBackground(
+  ctx: OffscreenCanvasRenderingContext2D,
+  width: number,
+  height: number,
+  bgConfig: ProjectConfig['background'],
+  bgItems: Array<{ id: string; duration?: number }>,
+  currentTime: number,
+  rawBeatFactor: number,
+  bgBitmaps: Map<string, ImageBitmap>
+): void {
+  const totalBgItems = bgItems.length;
+  if (totalBgItems === 0) return;
+
+  const bgBrightness = bgConfig?.brightness ?? 1.0;
+  let activeItem = bgItems[0];
+  let nextItem: any = null;
+  let blendFactor = 0;
+
+  if (totalBgItems > 1 && bgConfig.type.startsWith('multi')) {
+    const itemDuration = bgItems[0]?.duration || 5.0;
+    const cycleIndex = Math.floor(currentTime / itemDuration) % totalBgItems;
+    const progressInItem = (currentTime % itemDuration) / itemDuration;
+
+    activeItem = bgItems[cycleIndex];
+    nextItem = bgItems[(cycleIndex + 1) % totalBgItems];
+
+    const transDurationNorm = (bgConfig.transitionDuration || 1.0) / itemDuration;
+    if (progressInItem > 1 - transDurationNorm && bgConfig.transition === 'crossfade') {
+      blendFactor = (progressInItem - (1 - transDurationNorm)) / transDurationNorm;
+    }
+  }
+
+  const bmp = bgBitmaps.get(activeItem.id);
+  if (bmp) {
+    const bgSens = bgConfig.beatSensitivity ?? 1.0;
+    const bgBeat = 1.0 + (rawBeatFactor - 1.0) * bgSens;
+    const scaleFactor = bgConfig.followBeat ? 1 + (bgBeat - 1) * 0.03 : 1.0;
+
+    const targetScale = Math.max(width / bmp.width, height / bmp.height) * scaleFactor;
+    const drawW = bmp.width * targetScale;
+    const drawH = bmp.height * targetScale;
+    const drawX = (width - drawW) / 2;
+    const drawY = (height - drawH) / 2;
+
+    ctx.save();
+    ctx.globalAlpha = 1.0 - (blendFactor > 0 ? blendFactor * 0.5 : 0);
+    if (bgBrightness !== 1.0) {
+      ctx.filter = `brightness(${bgBrightness})`;
+    }
+    ctx.drawImage(bmp, drawX, drawY, drawW, drawH);
+    ctx.restore();
+  }
+
+  // Crossfade next slide
+  if (nextItem && blendFactor > 0 && bgConfig.transition === 'crossfade') {
+    const nextBmp = bgBitmaps.get(nextItem.id);
+    if (nextBmp) {
+      const targetScale = Math.max(width / nextBmp.width, height / nextBmp.height);
+      const drawW = nextBmp.width * targetScale;
+      const drawH = nextBmp.height * targetScale;
+      const drawX = (width - drawW) / 2;
+      const drawY = (height - drawH) / 2;
+
+      ctx.save();
+      ctx.globalAlpha = blendFactor;
+      if (bgBrightness !== 1.0) {
+        ctx.filter = `brightness(${bgBrightness})`;
+      }
+      ctx.drawImage(nextBmp, drawX, drawY, drawW, drawH);
+      ctx.restore();
+    }
+  }
+}
+
+/**
+ * Draws image sticker overlays with animations
+ */
+function drawImageOverlays(
+  ctx: OffscreenCanvasRenderingContext2D,
+  width: number,
+  height: number,
+  images: ImageOverlayItem[] | undefined,
+  currentTime: number,
+  rawBeatFactor: number,
+  overlayBitmaps: Map<string, ImageBitmap>
+): void {
+  if (!images || images.length === 0) return;
+
+  const scaleFactor = Math.min(width / 1920, height / 1080);
+  for (const imgItem of images) {
+    const bmp = overlayBitmaps.get(imgItem.id);
+    if (bmp) {
+      const sens = imgItem.beatSensitivity ?? 1.0;
+      const imgBeat = 1.0 + (rawBeatFactor - 1.0) * sens;
+
+      const posX = (imgItem.x ?? 0.5) * width;
+      let posY = (imgItem.y ?? 0.5) * height;
+      let drawAlpha = imgItem.opacity ?? 1.0;
+      let animScale = 1.0;
+
+      // Animation options
+      if (imgItem.animation === 'floating') {
+        posY += Math.sin(currentTime * 2.5 + (imgItem.x ?? 0.5) * 10) * 12 * scaleFactor;
+      } else if (imgItem.animation === 'pulse-beat') {
+        if (imgItem.followBeat) {
+          animScale = 1.0 + (imgBeat - 1.0) * 0.15;
+        } else {
+          animScale = 1.0 + Math.sin(currentTime * 3) * 0.05;
+        }
+      } else if (imgItem.animation === 'shimmer') {
+        drawAlpha *= 0.6 + Math.sin(currentTime * 4) * 0.4;
+      } else if (imgItem.animation === 'glow-pulse') {
+        drawAlpha *= 0.75 + Math.sin(currentTime * 5) * 0.25;
+      }
+
+      const baseScale = (imgItem.scale ?? 1.0) * scaleFactor;
+      const beatScale = imgItem.followBeat ? 1 + (imgBeat - 1) * 0.25 : 1.0;
+      const scale = baseScale * beatScale * animScale;
+
+      const drawW = bmp.width * scale;
+      const drawH = bmp.height * scale;
+
+      ctx.save();
+      ctx.globalAlpha = drawAlpha;
+      ctx.translate(posX, posY);
+      if (imgItem.rotation) ctx.rotate((imgItem.rotation * Math.PI) / 180);
+      ctx.drawImage(bmp, -drawW / 2, -drawH / 2, drawW, drawH);
+      ctx.restore();
+    }
+  }
+}
 
