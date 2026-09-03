@@ -1,61 +1,82 @@
-# 🎵 Music Visualizer Studio
+# 🎵 Music Visualizer Studio (Beras Visualizer)
 
-Aplikasi visualizer musik & generator video berbasis web modern dengan arsitektur rendering **WebCodecs hardware acceleration** langsung di browser. Mampu mengekspor video musik resolusi tinggi (720p & 1080p 60 FPS) dengan kecepatan hingga **4x - 6x realtime** tanpa membebani server dan 100% aman dari masalah Out-Of-Memory (OOM).
+Aplikasi visualizer musik & generator video desktop modern berbasis **Tauri v2 + Svelte 5** dengan arsitektur rendering **Hardware Acceleration** langsung di perangkat Anda. Mampu mengekspor video musik resolusi tinggi (720p & 1080p FHD 60 FPS) dengan kecepatan hingga **7x - 8x realtime** (~30 detik untuk video 4 menit), ukuran aplikasi ultra-ringan (~3.6 MB), dan pemakaian RAM yang dingin & efisien.
+
+---
+
+## 📥 Download Aplikasi Desktop (Untuk Pengguna Langsung)
+
+Bagi Anda yang hanya ingin menggunakan aplikasi untuk membuat video visualizer musik, **TIDAK PERLU menginstal Node.js, Python, atau tools pemrograman apa pun**. Cukup download installer resmi siap pakai:
+
+👉 **[Download Rilis Terbaru (v1.3.0)](https://github.com/boneyanto/music-visualizer-beras/releases/latest)**
+
+* 🍏 **macOS:** Download file `.dmg` (Apple Silicon M1/M2/M3/M4 & Intel). Buka dan drag ke folder `Applications`.
+* 🪟 **Windows:** Download file `.msi` atau `.exe` (Windows 10 / 11). Jalankan installer dan aplikasi siap digunakan.
 
 ---
 
 ## ✨ Fitur Utama
 
-- 🚀 **Ultra-Fast WebCodecs Hardware Export:**
-  - Rendering video 1080p & 720p 60 FPS langsung di browser client menggunakan Web Worker & `OffscreenCanvas`.
-  - Backpressure reaktif berbasis event `ondequeue` untuk saturasi GPU maksimal tanpa *stalling*.
-  - Pemrosesan video MP4 & AAC audio muxing didukung oleh **Mediabunny**.
-  - Waktu render lagu 4 menit: **~57 detik (720p)** dan **~99 detik (1080p)**.
+- ⚡ **Ultra-Fast Hardware Render (7x - 8x Speed):**
+  - Rendering video 1080p FHD & 720p 60 FPS menggunakan Web Worker & `OffscreenCanvas`.
+  - Durasi render lagu 4 menit: **cuma ~30 - 32 detik**!
+  - RAM ultra-lean dengan alokasi buffer efisien dan pembersihan memori otomatis.
+  - Streaming penyimpanan video langsung ke disk lokal (`~/Downloads`) tanpa lonjakan swap.
+
+- 📦 **Sistem Proyek Desktop (.beras & .bvp):**
+  - **Paket Proyek Lengkap (`.beras`)**: Mengemas file project beserta seluruh aset binary asli (lagu audio, video background, gambar overlay) ke dalam 1 file mandiri. 100% portabel dan anti-hilang.
+  - **Preset Styling (`.bvp`)**: Menyimpan styling visualizer saja (ringan < 50 KB) untuk dijadikan template lagu lain.
+  - **New Project**: Reset cepat untuk memulai proyek visualizer baru yang bersih.
 
 - 📊 **Dynamic Audio Spectrum Analyzer:**
   - Visualisasi spektrum frekuensi audio real-time dengan Web Audio API.
   - Pilihan gaya visual: *Circular*, *Bars*, *Waveform*, dan *Radial-Bars*.
-  - Warna kustom, gradien dinamis, dan beat sensitivity.
+  - Beat sensitivity, warna kustom, dan gradien dinamis.
+
+- 🎬 **Video Background & Overlay Support:**
+  - Dukungan background video loop sinematik dengan sinkronisasi beat audio.
+  - Video sticker overlay dengan Chroma Key (green screen removal), blend modes, dan scaling otomatis.
 
 - ✨ **Interactive Particle Engine:**
   - Berbagai preset partikel: `Bokeh Glow`, `Confetti`, `Snow`, `Beat Sparks`, dan `Floating Dust`.
   - Reaktif mengikuti dentuman beat musik (*beat sensitivity & pulse*).
-  - Dioptimasi tanpa `shadowBlur` berat untuk menjaga FPS render tetap stabil.
 
 - 🎙️ **Smart AI Lyrics Transcription (Groq Whisper):**
   - Transkripsi lirik otomatis dengan timestamp presisi tinggi via Groq Whisper Cloud API.
   - Pembuatan animasi lirik karaoke sinkron per kata.
-  - Dukungan impor/ekspor file subtitle (.srt / .vtt / .lrc).
+  - Dukungan impor/ekspor file subtitle (`.srt`, `.vtt`, `.lrc`).
 
-- 🎨 **Multi-Layer Overlay Studio:**
-  - Tambahkan teks, watermark gambar, playlist tracklist, dan logo.
-  - Animasi teks: *pulse-beat*, *floating*, *shimmer*, *glow-pulse*, dan *typewriter*.
-  - Slideshow gambar background dengan efek *crossfade transition* otomatis.
-
-- 💾 **Local Offline Storage:**
-  - Manajemen proyek visualizer tersimpan lokal di browser via **Dexie (IndexedDB)**.
+- 📑 **Playlist & Tracklist Studio:**
+  - Gabungkan beberapa lagu MP3/WAV menjadi satu visualizer panjang (mix/album).
+  - Generator poster & overlay tracklist otomatis dengan pilihan font kustom.
 
 ---
 
 ## 🛠️ Tech Stack
 
-- **Framework:** [Svelte 5](https://svelte.dev/) (menggunakan Runes: `$state`, `$derived`, `$props`)
-- **Language:** [TypeScript](https://www.typescriptlang.org/)
-- **Bundler / Dev Server:** [Vite](https://vitejs.dev/)
+- **Desktop Framework:** [Tauri v2](https://tauri.app/) (Rust + Native Webview, ukuran binary hanya ~3.6 MB)
+- **Frontend Framework:** [Svelte 5](https://svelte.dev/) (menggunakan Runes: `$state`, `$derived`, `$props`)
+- **Language:** [TypeScript](https://www.typescriptlang.org/) & [Rust](https://www.rust-lang.org/)
+- **Bundler:** [Vite](https://vitejs.dev/)
 - **Styling:** [Tailwind CSS v4](https://tailwindcss.com/)
-- **Video & Audio Encoding:** [WebCodecs API](https://developer.mozilla.org/en-US/docs/Web/API/WebCodecs_API) & [Mediabunny](https://github.com/Vanilagy/mediabunny)
-- **Icons:** [Lucide Svelte](https://lucide.dev/)
-- **Database:** [Dexie.js](https://dexie.org/)
+- **Video/Audio Muxing:** [Mediabunny](https://github.com/Vanilagy/mediabunny) & [@mediabunny/aac-encoder](https://www.npmjs.com/package/@mediabunny/aac-encoder)
+- **Project Packaging:** [fflate](https://github.com/101arrowz/fflate) (Zero-CPU zip archiving)
+- **Local Storage:** [Dexie.js](https://dexie.org/) (IndexedDB)
 
 ---
 
-## 🚀 Memulai (Getting Started)
+## 💻 Panduan Pengembang (Developer Guide)
 
-### Prasyarat
-- Node.js 18+ atau 20+
-- Browser modern yang mendukung WebCodecs (Google Chrome, Microsoft Edge, Brave, atau browser berbasis Chromium lainnya)
+> Bagian ini **hanya untuk programmer/developer** yang ingin memodifikasi source code atau berkontribusi.
 
-### Instalasi
+### Prasyarat Pengembang
+- **Node.js:** v18+ atau v22+
+- **Rust:** Versi stable (`rustup default stable`)
+- **OS Tools:**
+  - macOS: Xcode Command Line Tools (`xcode-select --install`)
+  - Windows: Visual Studio C++ Build Tools (C++ Desktop Development)
+
+### Menjalankan Mode Pengembangan (Dev Mode)
 
 1. Clone repositori:
 ```bash
@@ -68,28 +89,20 @@ cd music-visualizer-beras
 npm install
 ```
 
-3. Jalankan server pengembangan (Dev Mode):
+3. Jalankan aplikasi desktop dalam mode development:
 ```bash
-npm run dev
-```
-Buka browser dan akses alamat `http://localhost:5173`.
-
-4. Build untuk produksi:
-```bash
-npm run build
+npm run desktop:dev
 ```
 
----
-
-## ⚙️ Arsitektur Render & Optimasi
-
-Visualizer ini menggunakan arsitektur rendering video modern:
-1. **Separation of Concerns:** Seluruh proses decoding, canvas drawing, video encoding, dan audio multiplexing berjalan di dalam **Web Worker** mandiri (`render.worker.ts`), sehingga UI utama tetap mulus dan responsif.
-2. **Backpressure Terpadu:** Loop frame kanvas dikontrol secara presisi dengan event `videoEncoder.ondequeue` untuk mencegah frame mentah menumpuk di memori (menjaga konsumsi RAM stabil di kisaran 50–100 MB).
-3. **Hardware Acceleration:** Menggunakan encoder AVC/H.264 level hardware bawaan GPU perangkat (`prefer-hardware`) dengan mode `quality` untuk memaksimalkan throughput kompresi.
+4. Build aplikasi desktop:
+```bash
+npm run desktop:build
+```
+Hasil installer akan tersedia di:
+- macOS: `src-tauri/target/release/bundle/dmg/`
+- Windows: `src-tauri/target/release/bundle/msi/` dan `bundle/nsis/`
 
 ---
 
 ## 📄 Lisensi
-
-Proyek ini dilisensikan di bawah [MIT License](LICENSE).
+MIT License. Bebas digunakan untuk keperluan personal maupun komersial.
