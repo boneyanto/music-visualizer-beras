@@ -19,7 +19,8 @@
     Ban,
     Download,
     FolderOpen,
-    CheckCircle2
+    CheckCircle2,
+    Languages
   } from '@lucide/svelte';
 
   let showModal = $state(false);
@@ -31,6 +32,27 @@
   let singleSuccessMsg = $state<string | null>(null);
   let abortController: AbortController | null = null;
   let subtitleFileInput = $state<HTMLInputElement>();
+
+  let selectedLanguage = $state('id');
+
+  const supportedLanguages = [
+    { code: 'id', label: '🇮🇩 Indonesian (ID)' },
+    { code: 'en', label: '🇺🇸 English (EN)' },
+    { code: 'ja', label: '🇯🇵 Japanese (JA)' },
+    { code: 'ko', label: '🇰🇷 Korean (KO)' },
+    { code: 'auto', label: '🌐 Auto Detect' },
+    { code: 'ms', label: '🇲🇾 Malay (MS)' },
+    { code: 'ar', label: '🇸🇦 Arabic (AR)' },
+    { code: 'zh', label: '🇨🇳 Chinese (ZH)' },
+    { code: 'es', label: '🇪🇸 Spanish (ES)' },
+    { code: 'fr', label: '🇫🇷 French (FR)' },
+    { code: 'de', label: '🇩🇪 German (DE)' },
+    { code: 'pt', label: '🇵🇹 Portuguese (PT)' },
+    { code: 'ru', label: '🇷🇺 Russian (RU)' },
+    { code: 'th', label: '🇹🇭 Thai (TH)' },
+    { code: 'vi', label: '🇻🇳 Vietnamese (VI)' },
+    { code: 'tl', label: '🇵🇭 Tagalog (TL)' },
+  ];
 
   export function open() {
     showModal = true;
@@ -87,7 +109,8 @@
           (status, percent) => {
             singleStatusText = status;
             singleProgressPercent = percent;
-          }
+          },
+          selectedLanguage
         );
       } else {
         let blob: Blob | null = null;
@@ -109,7 +132,8 @@
           (status, percent) => {
             singleStatusText = status;
             singleProgressPercent = percent;
-          }
+          },
+          selectedLanguage
         );
       }
 
@@ -280,12 +304,28 @@
                   </div>
                 </div>
 
-                <div class="flex items-center gap-2">
+                <div class="flex items-center gap-2 flex-wrap sm:flex-nowrap">
+                  <!-- Language Selector Dropdown -->
+                  <div class="relative flex items-center">
+                    <div class="absolute left-2.5 pointer-events-none text-neutral-400">
+                      <Languages class="w-3.5 h-3.5 text-cyan-400" />
+                    </div>
+                    <select
+                      bind:value={selectedLanguage}
+                      class="pl-8 pr-2.5 py-2 bg-neutral-800 hover:bg-neutral-700 text-neutral-200 border border-neutral-700 font-medium rounded-xl text-xs outline-none focus:border-cyan-500 transition-colors cursor-pointer"
+                      title="Pilih Bahasa Audio untuk Meningkatkan Akurasi Transkripsi"
+                    >
+                      {#each supportedLanguages as lang}
+                        <option value={lang.code}>{lang.label}</option>
+                      {/each}
+                    </select>
+                  </div>
+
                   <!-- Import Subtitle (.srt / .vtt) -->
                   <button 
                     type="button"
                     onclick={() => subtitleFileInput?.click()}
-                    class="px-3 py-2 bg-neutral-800 hover:bg-neutral-700 text-neutral-200 border border-neutral-700 font-medium rounded-xl flex items-center gap-1.5 transition-all cursor-pointer"
+                    class="px-3 py-2 bg-neutral-800 hover:bg-neutral-700 text-neutral-200 border border-neutral-700 font-medium rounded-xl flex items-center gap-1.5 transition-all cursor-pointer text-xs"
                     title="Import external .srt or .vtt subtitle file"
                   >
                     <FolderOpen class="w-3.5 h-3.5 text-cyan-400" />

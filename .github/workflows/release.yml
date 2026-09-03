@@ -5,6 +5,16 @@ on:
     tags:
       - 'v*'
   workflow_dispatch:
+    inputs:
+      platform:
+        description: 'Pilih platform yang ingin di-compile'
+        required: true
+        default: 'all'
+        type: choice
+        options:
+          - all
+          - windows
+          - macos
 
 jobs:
   build-tauri:
@@ -15,11 +25,17 @@ jobs:
       matrix:
         include:
           - platform: 'windows-latest'
+            os_name: 'windows'
             args: ''
           - platform: 'macos-latest'
+            os_name: 'macos'
             args: '--target aarch64-apple-darwin'
 
     runs-on: ${{ matrix.platform }}
+    if: |
+      github.event_name == 'push' ||
+      inputs.platform == 'all' ||
+      inputs.platform == matrix.os_name
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4

@@ -31,7 +31,8 @@ export class GroqService {
     apiKey: string,
     model: string,
     signal?: AbortSignal,
-    retries: number = 2
+    retries: number = 2,
+    language?: string
   ): Promise<GroqTranscriptionResponse> {
     for (let attempt = 0; attempt <= retries; attempt++) {
       const formData = new FormData();
@@ -40,6 +41,9 @@ export class GroqService {
       formData.append('response_format', 'verbose_json');
       formData.append('timestamp_granularities[]', 'word');
       formData.append('timestamp_granularities[]', 'segment');
+      if (language && language !== 'auto') {
+        formData.append('language', language);
+      }
 
       // Generous 120s timeout to prevent premature disconnect on large chunks
       const timeoutController = new AbortController();
@@ -60,23 +64,19 @@ export class GroqService {
 
         if (!response.ok) {
           const errData = await response.json().catch(() => ({}));
-          const errMsg = errData.error?.message || `HTTP ${response.status}: ${response.statusText}`;
-          if (response.status === 429 && attempt < retries) {
-            // Rate limit wait 3s then retry
-            await new Promise((r) => setTimeout(r, 3000));
-            continue;
-          }
-          throw new Error(`Groq API Error: ${errMsg}`);
+          throw new Error(errData?.error?.message || `Groq API Error: ${response.status} ${response.statusText}`);
         }
 
-        return await response.json();
+        const data: GroqTranscriptionResponse = await response.json();
+        return data;
       } catch (err: any) {
         clearTimeout(timeoutId);
         if (signal?.aborted) {
           throw new Error('Transkripsi dibatalkan oleh pengguna.');
         }
-        if (timeoutController.signal.aborted) {
+        if (err.name === 'AbortError') {
           if (attempt < retries) {
+            console.warn(`Attempt ${attempt + 1} timed out, retrying in 2s...`);
             await new Promise((r) => setTimeout(r, 2000));
             continue;
           }
@@ -101,7 +101,8 @@ export class GroqService {
     apiKey: string,
     model: string = 'whisper-large-v3-turbo',
     signal?: AbortSignal,
-    onProgress?: (status: string, percent: number) => void
+    onProgress?: (status: string, percent: number) => void,
+    language: string = 'auto'
   ): Promise<LyricSegment[]> {
     if (!apiKey) throw new Error('Groq API Key diperlukan.');
 
@@ -113,7 +114,7 @@ export class GroqService {
       onProgress?.('Mengompres audio (16kHz Mono)...', 20);
       const wavBlob = AudioAnalyzer.audioBufferToWavBlob(audioBuffer, 16000);
       onProgress?.(`Mengirim audio ke Groq (${model})...`, 40);
-      const data = await this.transcribeChunk(wavBlob, apiKey, model, signal);
+      const data = await this.transcribeChunk(wavBlob, apiKey, model, signal, 2, language);
       onProgress?.('Menyusun timestamps kata...', 90);
       return this.buildPrecisionLyricSegments(data, 0);
     }
@@ -145,7 +146,7 @@ export class GroqService {
       await tempCtx.close();
 
       const wavBlob = AudioAnalyzer.audioBufferToWavBlob(chunkBuffer, 16000);
-      const data = await this.transcribeChunk(wavBlob, apiKey, model, signal);
+      const data = await this.transcribeChunk(wavBlob, apiKey, model, signal, 2, language);
       const chunkSegments = this.buildPrecisionLyricSegments(data, startTime);
       allSegments.push(...chunkSegments);
     }
@@ -162,10 +163,11 @@ export class GroqService {
     apiKey: string,
     model: string = 'whisper-large-v3-turbo',
     signal?: AbortSignal,
-    onProgress?: (status: string, percent: number) => void
+    onProgress?: (status: string, percent: number) => void,
+    language: string = 'auto'
   ): Promise<LyricSegment[]> {
     onProgress?.(`Mengirim audio ke Groq (${model})...`, 40);
-    const data = await this.transcribeChunk(file, apiKey, model, signal);
+    const data = await this.transcribeChunk(file, apiKey, model, signal, 2, language);
     onProgress?.('Menyusun timestamps kata...', 90);
     return this.buildPrecisionLyricSegments(data, 0);
   }
