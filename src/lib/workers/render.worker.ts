@@ -116,13 +116,13 @@ self.onmessage = async (e: MessageEvent<RenderRequest | { type: 'CANCEL' }>) => 
       bitrate: videoBitrate || defaultBitrate,
       framerate: fps,
       hardwareAcceleration: 'prefer-hardware',
-      latencyMode: 'quality',
+      latencyMode: 'realtime',
     } as any);
 
-    // Setup zero-latency ondequeue backpressure (Prevents OOM & keeps render speed maximal)
+    // Setup zero-latency ondequeue backpressure with safety fallback (prevents stalls on Intel MFT / Windows)
     let queueDrainResolver: (() => void) | null = null;
     videoEncoder.ondequeue = () => {
-      if (videoEncoder.encodeQueueSize <= 10 && queueDrainResolver) {
+      if (queueDrainResolver && videoEncoder.encodeQueueSize <= 12) {
         const resolve = queueDrainResolver;
         queueDrainResolver = null;
         resolve();
@@ -154,13 +154,6 @@ self.onmessage = async (e: MessageEvent<RenderRequest | { type: 'CANCEL' }>) => 
         const currentTime = frameIdx / fps;
         const timestampMicroseconds = Math.round(currentTime * 1_000_000);
         const isKeyFrame = frameIdx % (fps * 2) === 0;
-
-        // Zero-latency GPU Queue Backpressure via ondequeue event (No setTimeout stall)
-        if (videoEncoder.encodeQueueSize > 20) {
-          await new Promise<void>((resolve) => {
-            queueDrainResolver = resolve;
-          });
-        }
 
         // 1. Determine Beat Hit
         let rawBeatFactor = 1.0;
@@ -266,11 +259,18 @@ self.onmessage = async (e: MessageEvent<RenderRequest | { type: 'CANCEL' }>) => 
           duration: Math.round((1 / fps) * 1_000_000),
         });
 
-        // 8. Backpressure check & Encode VideoFrame
-        // Caps uncompressed frame buffer to <= 20 frames, preventing gigabyte RAM bloat & swap
-        if (videoEncoder.encodeQueueSize > 20) {
+        // 8. GPU Queue Backpressure with safety timeout
+        // Caps uncompressed frame buffer without stalling Intel Arc / Windows hardware encoders
+        if (videoEncoder.encodeQueueSize > 24) {
           await new Promise<void>((resolve) => {
             queueDrainResolver = resolve;
+            // Safety timeout: guarantees the loop never stalls even if driver delays ondequeue
+            setTimeout(() => {
+              if (queueDrainResolver === resolve) {
+                queueDrainResolver = null;
+                resolve();
+              }
+            }, 15);
           });
         }
 
@@ -284,7 +284,7 @@ self.onmessage = async (e: MessageEvent<RenderRequest | { type: 'CANCEL' }>) => 
           const framesInWindow = frameIdx - windowStartFrame + 1;
 
           let currentFPS = windowElapsedSec > 0.05 ? framesInWindow / windowElapsedSec : 150;
-          currentFPS = Math.min(300, Math.max(30, currentFPS));
+          currentFPS = Math.min(800, Math.max(10, currentFPS));
 
           windowStartTime = now;
           windowStartFrame = frameIdx + 1;

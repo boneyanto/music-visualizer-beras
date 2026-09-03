@@ -10,6 +10,7 @@
   import { ParticleSystem } from '../engine/particles';
   import { SpectrumRenderer } from '../engine/spectrum';
   import { LyricRenderer } from '../engine/lyrics';
+  import { videoExporter } from '../engine/exporter.svelte';
   import { Play, Pause, RotateCcw } from '@lucide/svelte';
 
   let canvasRef: HTMLCanvasElement;
@@ -43,6 +44,13 @@
 
   function renderFrame() {
     if (!canvasRef) return;
+
+    // Liberate 100% of GPU & CPU for export worker while video export is running
+    if (videoExporter.isExporting) {
+      animId = requestAnimationFrame(renderFrame);
+      return;
+    }
+
     const ctx = canvasRef.getContext('2d');
     if (!ctx) return;
 
