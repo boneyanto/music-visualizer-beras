@@ -48,10 +48,16 @@ self.onmessage = async (e: MessageEvent<RenderRequest | { type: 'CANCEL' }>) => 
     const bgBitmaps = await preloadBitmaps(bgItems);
     const overlayBitmaps = await preloadBitmaps(project.overlays?.images);
 
-    // 2. Initialize Render Engines
+    // 2. Initialize Render Engines & Prepare Static Offscreen Text Cache
     const particles = new ParticleSystem(width, height);
     const spectrum = new SpectrumRenderer();
     const lyrics = new LyricRenderer();
+    if (project.overlays?.texts && typeof textOverlayManager.prepareCache === 'function') {
+      textOverlayManager.prepareCache(width, height, project.overlays.texts);
+    }
+    if (project.overlays?.tracklist && typeof tracklistOverlayRenderer.prepareCache === 'function') {
+      tracklistOverlayRenderer.prepareCache(width, height, project.overlays.tracklist, project.audio?.tracks);
+    }
 
     // Setup Mediabunny Output & Tracks
     const target = new BufferTarget();
@@ -275,11 +281,13 @@ self.onmessage = async (e: MessageEvent<RenderRequest | { type: 'CANCEL' }>) => 
       // Finalize Mediabunny Output
       await output.finalize();
 
-      // Free Bitmaps immediately to release RAM
+      // Free Bitmaps & Caches immediately to release RAM
       bgBitmaps.forEach((bmp) => bmp.close());
       bgBitmaps.clear();
       overlayBitmaps.forEach((bmp) => bmp.close());
       overlayBitmaps.clear();
+      textOverlayManager?.clearCache?.();
+      tracklistOverlayRenderer?.clearCache?.();
 
       const buffer = target.buffer;
 
@@ -303,6 +311,8 @@ self.onmessage = async (e: MessageEvent<RenderRequest | { type: 'CANCEL' }>) => 
       bgBitmaps.clear();
       overlayBitmaps.forEach((bmp) => bmp.close());
       overlayBitmaps.clear();
+      textOverlayManager?.clearCache?.();
+      tracklistOverlayRenderer?.clearCache?.();
 
       self.postMessage({
         type: 'ERROR',

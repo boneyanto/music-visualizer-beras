@@ -1,6 +1,93 @@
 import type { TextOverlayItem } from '../types/project';
 
+interface CachedTextOverlay {
+  canvas: OffscreenCanvas;
+  width: number;
+  height: number;
+  anchorX: number;
+  anchorY: number;
+}
+
 export class TextOverlayManager {
+  private cache = new Map<string, CachedTextOverlay>();
+
+  clearCache() {
+    this.cache.clear();
+  }
+
+  prepareCache(
+    canvasWidth: number,
+    canvasHeight: number,
+    texts: TextOverlayItem[]
+  ) {
+    this.cache.clear();
+    if (!texts || texts.length === 0) return;
+
+    const scaleFactor = Math.min(canvasWidth / 1920, canvasHeight / 1080);
+
+    for (const item of texts) {
+      if (!item.text) continue;
+      // Skip animations that dynamically change text glyphs or procedurally modify blur
+      if (item.animation === 'typewriter' || item.animation === 'glow-pulse') {
+        continue;
+      }
+
+      const baseFontSize = (item.fontSize || 36) * scaleFactor;
+      const font = item.fontFamily || 'Inter';
+      const customShadowBlur = 8 * scaleFactor;
+      const customShadowColor = item.shadowColor || 'rgba(0, 0, 0, 0.9)';
+      const shadowOffsetX = 2 * scaleFactor;
+      const shadowOffsetY = 3 * scaleFactor;
+
+      const pad = Math.ceil(customShadowBlur * 2.5 + Math.max(Math.abs(shadowOffsetX), Math.abs(shadowOffsetY)) + 16 * scaleFactor);
+
+      // Measure font dimensions
+      const measureCanvas = new OffscreenCanvas(1, 1);
+      const mCtx = measureCanvas.getContext('2d');
+      if (!mCtx) continue;
+
+      const fontStr = `bold ${baseFontSize}px "${font}", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif`;
+      mCtx.font = fontStr;
+      const metrics = mCtx.measureText(item.text);
+
+      const textWidth = Math.ceil(metrics.width);
+      const textHeight = Math.ceil(baseFontSize * 1.4);
+      const cWidth = Math.max(1, textWidth + pad * 2);
+      const cHeight = Math.max(1, textHeight + pad * 2);
+
+      const cachedCanvas = new OffscreenCanvas(cWidth, cHeight);
+      const cCtx = cachedCanvas.getContext('2d');
+      if (!cCtx) continue;
+
+      cCtx.textAlign = item.alignment || 'center';
+      cCtx.textBaseline = 'middle';
+      cCtx.font = fontStr;
+
+      let anchorX = pad;
+      if (item.alignment === 'center') anchorX = cWidth / 2;
+      else if (item.alignment === 'right') anchorX = cWidth - pad;
+      const anchorY = cHeight / 2;
+
+      if (item.shadow) {
+        cCtx.shadowColor = customShadowColor;
+        cCtx.shadowBlur = customShadowBlur;
+        cCtx.shadowOffsetX = shadowOffsetX;
+        cCtx.shadowOffsetY = shadowOffsetY;
+      }
+
+      cCtx.fillStyle = item.color || '#ffffff';
+      cCtx.fillText(item.text, anchorX, anchorY);
+
+      this.cache.set(item.id, {
+        canvas: cachedCanvas,
+        width: cWidth,
+        height: cHeight,
+        anchorX,
+        anchorY,
+      });
+    }
+  }
+
   render(
     ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
     canvasWidth: number,
@@ -19,6 +106,40 @@ export class TextOverlayManager {
 
       const sensitivity = item.beatSensitivity ?? 1.0;
       const beatFactor = 1.0 + (rawBeatFactor - 1.0) * sensitivity;
+
+      // 1. Check if Cached Texture is Available (Zero-cost GPU blit)
+      const cached = this.cache.get(item.id);
+      if (cached && item.animation !== 'typewriter' && item.animation !== 'glow-pulse') {
+        const posX = item.x * canvasWidth;
+        let posY = item.y * canvasHeight;
+        let drawAlpha = item.opacity ?? 1.0;
+        let animScale = 1.0;
+
+        if (item.animation === 'floating') {
+          posY += Math.sin(currentTime * 2.5 + item.x * 10) * 12 * scaleFactor;
+        } else if (item.animation === 'pulse-beat') {
+          if (item.followBeat) {
+            animScale = 1 + (beatFactor - 1) * 0.15;
+          } else {
+            animScale = 1 + Math.sin(currentTime * 3) * 0.05;
+          }
+        } else if (item.animation === 'shimmer') {
+          drawAlpha *= (0.6 + Math.sin(currentTime * 4) * 0.4);
+        }
+
+        ctx.save();
+        ctx.globalAlpha = drawAlpha;
+        ctx.translate(posX, posY);
+        if (item.rotation) {
+          ctx.rotate((item.rotation * Math.PI) / 180);
+        }
+        if (animScale !== 1.0) {
+          ctx.scale(animScale, animScale);
+        }
+        ctx.drawImage(cached.canvas, -cached.anchorX, -cached.anchorY);
+        ctx.restore();
+        continue;
+      }
 
       const posX = item.x * canvasWidth;
       let posY = item.y * canvasHeight;

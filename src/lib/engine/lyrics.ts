@@ -61,15 +61,11 @@ export class LyricRenderer {
     ctx.save();
 
     let posX = (config.x ?? 0.5) * width;
-    let posY = (config.y ?? 0.85) * height;
-
-    if (config.position === 'top') {
-      posY = height * 0.15;
-    } else if (config.position === 'center') {
-      posY = height * 0.5;
-    } else if (config.position === 'bottom') {
-      posY = height * 0.85;
-    }
+    let posY = (config.y !== undefined) ? config.y * height : (
+      config.position === 'top' ? height * 0.15 :
+      config.position === 'center' ? height * 0.5 :
+      height * 0.85
+    );
 
     const baseFontSize = (config.fontSize || 36) * scaleFactor;
     let finalFontSize = config.followBeat 
