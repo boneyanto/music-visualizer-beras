@@ -8,9 +8,9 @@
     "build": "vite build",
     "preview": "vite preview",
     "check": "svelte-check --tsconfig ./tsconfig.app.json && tsc -p tsconfig.node.json",
-    "tauri": "PATH=\"$HOME/.cargo/bin:$PATH\" tauri",
-    "desktop:dev": "PATH=\"$HOME/.cargo/bin:$PATH\" tauri dev",
-    "desktop:build": "PATH=\"$HOME/.cargo/bin:$PATH\" tauri build"
+    "tauri": "tauri",
+    "desktop:dev": "tauri dev",
+    "desktop:build": "tauri build"
   },
   "devDependencies": {
     "@sveltejs/vite-plugin-svelte": "^7.3.0",
