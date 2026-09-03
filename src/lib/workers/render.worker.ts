@@ -109,6 +109,9 @@ self.onmessage = async (e: MessageEvent<RenderRequest | { type: 'CANCEL' }>) => 
     const avcCodec = width > 1280 || height > 720 ? 'avc1.640033' : 'avc1.4d0020';
     const defaultBitrate = width <= 1280 ? 8_000_000 : 14_000_000;
 
+    const isMac = typeof navigator !== 'undefined' && /Macintosh|Mac OS X|iPhone|iPad/i.test(navigator.userAgent || '');
+
+    // WebCodecs VideoEncoder: 'quality' on Apple Silicon VideoToolbox for max parallel throughput, 'realtime' on Windows to avoid MFT lookahead stall
     videoEncoder.configure({
       codec: avcCodec,
       width,
@@ -116,13 +119,14 @@ self.onmessage = async (e: MessageEvent<RenderRequest | { type: 'CANCEL' }>) => 
       bitrate: videoBitrate || defaultBitrate,
       framerate: fps,
       hardwareAcceleration: 'prefer-hardware',
-      latencyMode: 'realtime',
+      latencyMode: isMac ? 'quality' : 'realtime',
     } as any);
 
-    // Setup zero-latency ondequeue backpressure with safety fallback (prevents stalls on Intel MFT / Windows)
+    // Setup zero-latency ondequeue backpressure (pure microsecond resolution on Mac, buffered on Windows)
     let queueDrainResolver: (() => void) | null = null;
     videoEncoder.ondequeue = () => {
-      if (queueDrainResolver && videoEncoder.encodeQueueSize <= 12) {
+      const threshold = isMac ? 10 : 16;
+      if (queueDrainResolver && videoEncoder.encodeQueueSize <= threshold) {
         const resolve = queueDrainResolver;
         queueDrainResolver = null;
         resolve();
@@ -259,19 +263,27 @@ self.onmessage = async (e: MessageEvent<RenderRequest | { type: 'CANCEL' }>) => 
           duration: Math.round((1 / fps) * 1_000_000),
         });
 
-        // 8. GPU Queue Backpressure with safety timeout
-        // Caps uncompressed frame buffer without stalling Intel Arc / Windows hardware encoders
-        if (videoEncoder.encodeQueueSize > 24) {
-          await new Promise<void>((resolve) => {
-            queueDrainResolver = resolve;
-            // Safety timeout: guarantees the loop never stalls even if driver delays ondequeue
-            setTimeout(() => {
-              if (queueDrainResolver === resolve) {
-                queueDrainResolver = null;
-                resolve();
-              }
-            }, 15);
-          });
+        // 8. Platform-optimized GPU Queue Backpressure
+        if (isMac) {
+          // macOS Apple Silicon VideoToolbox: zero-latency microsecond resolution (600+ FPS)
+          if (videoEncoder.encodeQueueSize > 20) {
+            await new Promise<void>((resolve) => {
+              queueDrainResolver = resolve;
+            });
+          }
+        } else {
+          // Windows Intel Arc / QuickSync: buffered queue with safety fallback
+          if (videoEncoder.encodeQueueSize > 28) {
+            await new Promise<void>((resolve) => {
+              queueDrainResolver = resolve;
+              setTimeout(() => {
+                if (queueDrainResolver === resolve) {
+                  queueDrainResolver = null;
+                  resolve();
+                }
+              }, 10);
+            });
+          }
         }
 
         videoEncoder.encode(frame, { keyFrame: isKeyFrame });
