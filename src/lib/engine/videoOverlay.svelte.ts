@@ -32,6 +32,10 @@ export class VideoOverlayManager {
     }
   }
 
+  getVideoElement(id: string): HTMLVideoElement | undefined {
+    return this.videoElements.get(id);
+  }
+
   purgeUnused(activeIds: Set<string>) {
     for (const [id, vid] of this.videoElements.entries()) {
       if (!activeIds.has(id)) {

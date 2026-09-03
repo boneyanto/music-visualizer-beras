@@ -8,6 +8,7 @@
   import LyricsModal from './lib/components/LyricsModal.svelte';
   import PlaylistModal from './lib/components/PlaylistModal.svelte';
   import TracklistGenerator from './lib/components/TracklistGenerator.svelte';
+  import LeftNavigation from './lib/components/LeftNavigation.svelte';
 
   import { onMount, onDestroy } from 'svelte';
 
@@ -82,6 +83,8 @@
   <Header onExport={openExport} />
   
   <div class="flex-1 flex overflow-hidden min-h-0">
+    <LeftNavigation />
+
     {#if projectStore.activeTab === 'tracklist-png'}
       <TracklistGenerator />
     {:else}

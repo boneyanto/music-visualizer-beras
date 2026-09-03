@@ -39,7 +39,17 @@ export interface ParticleConfig {
   beatSensitivity: number;
 }
 
-export type SpectrumStyle = 'bars' | 'waveform' | 'circular' | 'radial-bars';
+export type SpectrumStyle = 
+  | 'bars' 
+  | 'waveform' 
+  | 'circular' 
+  | 'radial-bars' 
+  | 'center-bars' 
+  | 'neon-wave' 
+  | 'double-circular' 
+  | 'digital-eq' 
+  | 'dots-ring' 
+  | 'pulse-rings';
 
 export interface SpectrumConfig {
   enabled: boolean;

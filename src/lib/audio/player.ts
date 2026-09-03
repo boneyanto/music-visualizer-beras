@@ -1,4 +1,4 @@
-import { projectStore } from '../stores/project.svelte';
+import { projectStore, registerAudioPlaybackStopper } from '../stores/project.svelte';
 
 export class AudioEngine {
   private ctx: AudioContext | null = null;
@@ -90,3 +90,5 @@ export class AudioEngine {
 }
 
 export const audioEngine = new AudioEngine();
+
+registerAudioPlaybackStopper(() => audioEngine.stop());

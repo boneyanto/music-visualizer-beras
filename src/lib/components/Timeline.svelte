@@ -18,6 +18,22 @@
   let { onOpenPlaylist }: Props = $props();
 
   let fileInput: HTMLInputElement;
+  let isConfirmingDelete = $state(false);
+  let deleteTimer: any = null;
+
+  function handleDeleteAllTracks() {
+    if (!isConfirmingDelete) {
+      isConfirmingDelete = true;
+      if (deleteTimer) clearTimeout(deleteTimer);
+      deleteTimer = setTimeout(() => {
+        isConfirmingDelete = false;
+      }, 3500);
+    } else {
+      isConfirmingDelete = false;
+      if (deleteTimer) clearTimeout(deleteTimer);
+      projectStore.clearAllAudioTracks();
+    }
+  }
 
   async function handleAudioUpload(e: Event) {
     const target = e.target as HTMLInputElement;
@@ -80,13 +96,18 @@
           Total: {Math.floor(projectStore.project.audio.duration / 60)}:{(Math.floor(projectStore.project.audio.duration % 60)).toString().padStart(2, '0')}
         </span>
         <button 
-          onclick={() => {
-            if (confirm('Hapus semua lagu saat ini?')) projectStore.clearAllAudioTracks();
-          }}
-          class="text-neutral-500 hover:text-rose-400 p-1 cursor-pointer"
-          title="Clear All Tracks"
+          onclick={handleDeleteAllTracks}
+          class={`flex items-center gap-1 text-[11px] px-2 py-0.5 rounded transition-all cursor-pointer ${
+            isConfirmingDelete 
+              ? 'bg-rose-600 text-white animate-pulse' 
+              : 'text-neutral-500 hover:text-rose-400'
+          }`}
+          title="Hapus Semua Lagu"
         >
           <Trash2 class="w-3.5 h-3.5" />
+          {#if isConfirmingDelete}
+            <span>Yakin Hapus?</span>
+          {/if}
         </button>
       {/if}
     </div>

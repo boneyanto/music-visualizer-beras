@@ -48,6 +48,10 @@ export class BackgroundManager {
     }
   }
 
+  getVideoElement(id: string): HTMLVideoElement | undefined {
+    return this.videoCache.get(id);
+  }
+
   releaseAsset(id: string) {
     if (this.imageCache.has(id)) {
       const img = this.imageCache.get(id);

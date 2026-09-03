@@ -1,5 +1,7 @@
 import { projectStore } from '../stores/project.svelte';
 import { isDesktop } from '../utils/platform';
+import { backgroundManager } from './background.svelte';
+import { videoOverlayManager } from './videoOverlay.svelte';
 
 export class VideoExporter {
   private worker: Worker | null = null;
@@ -100,6 +102,52 @@ export class VideoExporter {
         console.warn('⚠️ No audioBuffer available for export!');
       }
 
+      // Pre-extract video frames from hardware-decoded HTMLVideoElements (100% reliable & ultra-fast)
+      const videoFramesMap: Record<string, ImageBitmap[]> = {};
+      const { width, height } = projectStore.project.exportSettings;
+
+      if (projectStore.project.background?.items) {
+        for (const item of projectStore.project.background.items) {
+          if (item.type === 'video') {
+            let vid = backgroundManager.getVideoElement(item.id);
+            if (!vid && item.url) {
+              try {
+                vid = (await backgroundManager.loadAsset(item as any)) as HTMLVideoElement;
+              } catch (e) {
+                console.warn('Failed to load video element for export:', e);
+              }
+            }
+            if (vid) {
+              console.log(`🎬 Pre-extracting background video frames for ${item.id}...`);
+              const frames = await extractFramesFromVideo(vid, 24, 15, width, height);
+              videoFramesMap[item.id] = frames;
+              transferables.push(...frames);
+              console.log(`✅ Extracted ${frames.length} frames for background video ${item.id}`);
+            }
+          }
+        }
+      }
+
+      if (projectStore.project.overlays?.videos) {
+        for (const vidItem of projectStore.project.overlays.videos) {
+          let vid = videoOverlayManager.getVideoElement(vidItem.id);
+          if (!vid && vidItem.url) {
+            try {
+              vid = await videoOverlayManager.loadVideo(vidItem);
+            } catch (e) {
+              console.warn('Failed to load overlay video element for export:', e);
+            }
+          }
+          if (vid) {
+            console.log(`🎬 Pre-extracting video overlay frames for ${vidItem.id}...`);
+            const frames = await extractFramesFromVideo(vid, 24, 15, width, height);
+            videoFramesMap[vidItem.id] = frames;
+            transferables.push(...frames);
+            console.log(`✅ Extracted ${frames.length} frames for overlay video ${vidItem.id}`);
+          }
+        }
+      }
+
       // Send payload to worker
       this.worker.postMessage({
         type: 'START_RENDER',
@@ -109,6 +157,7 @@ export class VideoExporter {
         frameDuration: projectStore.frameDuration,
         audioRawData,
         sampleRate: projectStore.audioBuffer?.sampleRate || 44100,
+        videoFramesMap,
       }, transferables);
     });
   }
@@ -189,3 +238,66 @@ export class VideoExporter {
 }
 
 export const videoExporter = new VideoExporter();
+
+/**
+ * Pre-extract video frames using hardware-accelerated HTMLVideoElement on main thread.
+ * Caps to max 15s at 24fps (360 frames max) to keep RAM ultra-cool and prevent swap.
+ */
+async function extractFramesFromVideo(
+  video: HTMLVideoElement,
+  fps: number = 24,
+  maxDuration: number = 15,
+  targetWidth: number = 1280,
+  targetHeight: number = 720
+): Promise<ImageBitmap[]> {
+  const duration = Math.min(video.duration || maxDuration, maxDuration);
+  const totalFrames = Math.max(1, Math.floor(duration * fps));
+  const frames: ImageBitmap[] = [];
+
+  const vidW = video.videoWidth || targetWidth;
+  const vidH = video.videoHeight || targetHeight;
+
+  // Scale down if larger than target to save memory while keeping HD crispness
+  let w = vidW;
+  let h = vidH;
+  if (w > targetWidth || h > targetHeight) {
+    const scale = Math.min(targetWidth / w, targetHeight / h);
+    w = Math.round(w * scale);
+    h = Math.round(h * scale);
+  }
+
+  const canvas = document.createElement('canvas');
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext('2d', { alpha: true });
+  if (!ctx) return frames;
+
+  const wasPlaying = !video.paused;
+  video.pause();
+
+  for (let i = 0; i < totalFrames; i++) {
+    const t = (i / totalFrames) * duration;
+    video.currentTime = t;
+
+    await new Promise<void>((resolve) => {
+      const onSeeked = () => {
+        video.removeEventListener('seeked', onSeeked);
+        resolve();
+      };
+      video.addEventListener('seeked', onSeeked, { once: true });
+      setTimeout(resolve, 60);
+    });
+
+    ctx.clearRect(0, 0, w, h);
+    ctx.drawImage(video, 0, 0, w, h);
+    const bmp = await createImageBitmap(canvas, { resizeQuality: 'high' });
+    frames.push(bmp);
+  }
+
+  if (wasPlaying) {
+    video.play().catch(() => {});
+  }
+
+  return frames;
+}
+

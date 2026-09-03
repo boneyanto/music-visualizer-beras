@@ -438,10 +438,16 @@
             onchange={() => projectStore.saveToDB()}
             class="w-full bg-neutral-950 border border-neutral-800 rounded-lg p-2 text-neutral-200 focus:border-cyan-500 outline-none cursor-pointer"
           >
-            <option value="circular">Circular Spectrum</option>
-            <option value="bars">Equalizer Bars</option>
-            <option value="waveform">Waveform Line</option>
-            <option value="radial-bars">Radial Bars</option>
+            <option value="circular">Circular Spectrum (Classic)</option>
+            <option value="bars">Equalizer Bars (Bottom)</option>
+            <option value="center-bars">Center Mirror Bars (Monstercat / NCS)</option>
+            <option value="neon-wave">Neon Wave (Glowing Smooth Curve)</option>
+            <option value="double-circular">Double Starburst Circle (In & Out)</option>
+            <option value="digital-eq">Digital LED Blocks (Hi-Fi Equalizer)</option>
+            <option value="dots-ring">Dots Constellation Ring</option>
+            <option value="pulse-rings">Concentric Sound Ripples</option>
+            <option value="radial-bars">Radial Orbit Bars</option>
+            <option value="waveform">Waveform Oscilloscope</option>
           </select>
         </div>
 
@@ -910,6 +916,24 @@
                   <span class="text-[11px] text-neutral-400">Pulse on Beat (Audio reactive)</span>
                   <input type="checkbox" bind:checked={img.followBeat} onchange={() => projectStore.saveToDB()} class="accent-cyan-500 w-3.5 h-3.5 cursor-pointer" />
                 </div>
+
+                {#if img.followBeat}
+                  <div class="space-y-1 text-[11px] pt-1">
+                    <div class="flex justify-between text-neutral-400">
+                      <span>Beat Power (Sensitivity)</span>
+                      <span class="text-cyan-400 font-mono">{(img.beatSensitivity ?? 1.0).toFixed(1)}x</span>
+                    </div>
+                    <input 
+                      type="range" 
+                      min="0.2" 
+                      max="3.0" 
+                      step="0.1" 
+                      bind:value={img.beatSensitivity} 
+                      onchange={() => projectStore.saveToDB()} 
+                      class="w-full accent-cyan-500 cursor-pointer" 
+                    />
+                  </div>
+                {/if}
               </div>
             {/each}
           </div>
@@ -1075,6 +1099,24 @@
                   <span class="text-neutral-400">Follow Audio Beat</span>
                   <input type="checkbox" bind:checked={item.followBeat} onchange={() => projectStore.saveToDB()} class="accent-cyan-500 w-3.5 h-3.5 cursor-pointer" />
                 </div>
+
+                {#if item.followBeat}
+                  <div class="space-y-1 text-[11px] pt-1">
+                    <div class="flex justify-between text-neutral-400">
+                      <span>Beat Power (Sensitivity)</span>
+                      <span class="text-cyan-400 font-mono">{(item.beatSensitivity ?? 1.0).toFixed(1)}x</span>
+                    </div>
+                    <input 
+                      type="range" 
+                      min="0.2" 
+                      max="3.0" 
+                      step="0.1" 
+                      bind:value={item.beatSensitivity} 
+                      onchange={() => projectStore.saveToDB()} 
+                      class="w-full accent-cyan-500 cursor-pointer" 
+                    />
+                  </div>
+                {/if}
               </div>
             </div>
           {/each}

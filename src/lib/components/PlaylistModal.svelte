@@ -34,9 +34,20 @@
     }
   }
 
+  let isConfirmingClear = $state(false);
+  let clearTimer: any = null;
+
   async function handleClearAll() {
-    if (confirm('Hapus semua daftar lagu dan reset audio?')) {
-      projectStore.clearAllAudioTracks();
+    if (!isConfirmingClear) {
+      isConfirmingClear = true;
+      if (clearTimer) clearTimeout(clearTimer);
+      clearTimer = setTimeout(() => {
+        isConfirmingClear = false;
+      }, 4000);
+    } else {
+      isConfirmingClear = false;
+      if (clearTimer) clearTimeout(clearTimer);
+      await projectStore.clearAllAudioTracks();
     }
   }
 </script>
@@ -91,10 +102,14 @@
           {#if projectStore.project.audio.tracks && projectStore.project.audio.tracks.length > 0}
             <button 
               onclick={handleClearAll}
-              class="px-3 py-1.5 rounded-lg bg-neutral-800 hover:bg-rose-950/60 text-neutral-300 hover:text-rose-400 text-xs font-medium border border-neutral-700 transition-colors cursor-pointer flex items-center gap-1.5"
+              class={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all cursor-pointer flex items-center gap-1.5 ${
+                isConfirmingClear 
+                  ? 'bg-rose-600 text-white border-rose-500 shadow-md shadow-rose-600/30 animate-pulse' 
+                  : 'bg-neutral-800 hover:bg-rose-950/60 text-neutral-300 hover:text-rose-400 border-neutral-700'
+              }`}
             >
               <Trash2 class="w-3.5 h-3.5" />
-              Bersihkan Semua Lagu
+              {isConfirmingClear ? 'Yakin Hapus Semua? (Klik Lagi)' : 'Bersihkan Semua Lagu'}
             </button>
           {/if}
         </div>

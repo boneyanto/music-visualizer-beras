@@ -3,6 +3,14 @@ import { db } from '../db/database';
 import { AudioAnalyzer } from '../audio/analyzer';
 import { backgroundManager } from '../engine/background.svelte';
 import { imageOverlayManager } from '../engine/imageOverlay.svelte';
+import { videoOverlayManager } from '../engine/videoOverlay.svelte';
+import { zipSync, unzipSync, strToU8, strFromU8 } from 'fflate';
+import { isDesktop } from '../utils/platform';
+
+let audioPlaybackStopper: (() => void) | null = null;
+export function registerAudioPlaybackStopper(cb: () => void) {
+  audioPlaybackStopper = cb;
+}
 
 /**
  * Resilient Web Audio decoder supporting WebKit/Safari/Tauri desktop
@@ -295,7 +303,7 @@ class ProjectState {
     tracks[index] = tracks[index + 1];
     tracks[index + 1] = temp;
     await this.rebuildMergedAudio();
-    this.saveToDB();
+    await this.saveToDB();
   }
 
   async removeAudioTrack(trackId: string) {
@@ -306,25 +314,89 @@ class ProjectState {
     }
     this.project.audio.tracks = this.project.audio.tracks.filter((t) => t.id !== trackId);
     this.trackBuffers.delete(trackId);
+    try {
+      await db.assets.delete(trackId);
+    } catch (e) {}
+
+    if (this.project.audio.tracks.length === 0) {
+      await this.clearAllAudioTracks();
+      return;
+    }
+
     await this.rebuildMergedAudio();
-    this.saveToDB();
+    await this.saveToDB();
   }
 
   async clearAllAudioTracks() {
+    audioPlaybackStopper?.();
     for (const t of this.project.audio.tracks || []) {
       if (t.url && t.url.startsWith('blob:')) {
         URL.revokeObjectURL(t.url);
       }
+      try {
+        await db.assets.delete(t.id);
+      } catch (e) {}
     }
     this.trackBuffers.clear();
     this.project.audio.tracks = [];
     this.project.audio.fileName = '';
     this.project.audio.duration = 0;
+    this.project.audio.url = '';
     this.audioBuffer = null;
     this.beats = [];
     this.frequencyFrames = [];
     this.currentTime = 0;
     this.isPlaying = false;
+    await this.saveToDB();
+  }
+
+  /**
+   * Reset and create a fresh project without remnants of previous assets
+   */
+  async createNewProject() {
+    audioPlaybackStopper?.();
+
+    // Revoke previous object URLs
+    for (const t of this.project.audio.tracks || []) {
+      if (t.url?.startsWith('blob:')) URL.revokeObjectURL(t.url);
+    }
+    for (const bg of this.project.background.items || []) {
+      if (bg.url?.startsWith('blob:')) URL.revokeObjectURL(bg.url);
+    }
+    for (const img of this.project.overlays.images || []) {
+      if (img.url?.startsWith('blob:')) URL.revokeObjectURL(img.url);
+    }
+    for (const vid of this.project.overlays.videos || []) {
+      if (vid.url?.startsWith('blob:')) URL.revokeObjectURL(vid.url);
+    }
+
+    // Clear assets from IndexedDB
+    try {
+      await db.assets.clear();
+      await db.projects.clear();
+    } catch (e) {
+      console.warn('Could not clear IndexedDB on new project:', e);
+    }
+
+    this.trackBuffers.clear();
+    this.audioBuffer = null;
+    this.beats = [];
+    this.frequencyFrames = [];
+    this.currentTime = 0;
+    this.isPlaying = false;
+
+    try {
+      backgroundManager.releaseAsset?.(this.project.id);
+    } catch (e) {}
+
+    const freshId = 'project-' + Date.now();
+    this.project = {
+      ...structuredClone(DEFAULT_PROJECT),
+      id: freshId,
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    };
+
     await this.saveToDB();
   }
 
@@ -503,6 +575,9 @@ class ProjectState {
           if (storedAsset && storedAsset.blob) {
             vid.url = URL.createObjectURL(storedAsset.blob);
             vid.file = new File([storedAsset.blob], vid.name, { type: storedAsset.blob.type });
+            await videoOverlayManager.loadVideo(vid).catch((err) => {
+              console.warn('Could not preload video overlay asset:', vid.name, err);
+            });
           }
         }
       }
@@ -511,44 +586,212 @@ class ProjectState {
     }
   }
 
+  /**
+   * Export all-in-one Project Package (.beras) containing project.json + all binary media assets
+   */
+  async exportProjectPackage(): Promise<void> {
+    const files: Record<string, Uint8Array> = {};
+    const sanitized = (this.project.title || 'project').toLowerCase().replace(/[^a-z0-9_-]/g, '_');
+
+    const manifestAssets: Array<{ id: string; name: string; type: string; path: string }> = [];
+    const assetEntries: Array<{ id: string; name: string; type: string }> = [];
+
+    if (this.project.audio?.tracks) {
+      for (const track of this.project.audio.tracks) {
+        assetEntries.push({ id: track.id, name: track.name, type: 'audio' });
+      }
+    }
+    if (this.project.background?.items) {
+      for (const item of this.project.background.items) {
+        assetEntries.push({ id: item.id, name: item.name, type: item.type || 'image' });
+      }
+    }
+    if (this.project.overlays?.images) {
+      for (const img of this.project.overlays.images) {
+        assetEntries.push({ id: img.id, name: img.name, type: 'image' });
+      }
+    }
+    if (this.project.overlays?.videos) {
+      for (const vid of this.project.overlays.videos) {
+        assetEntries.push({ id: vid.id, name: vid.name, type: 'video' });
+      }
+    }
+
+    for (const asset of assetEntries) {
+      try {
+        const stored = await db.assets.get(asset.id);
+        if (stored && stored.blob) {
+          const buffer = await stored.blob.arrayBuffer();
+          const cleanName = asset.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+          const entryPath = `assets/${asset.id}_${cleanName}`;
+          files[entryPath] = new Uint8Array(buffer);
+          manifestAssets.push({
+            id: asset.id,
+            name: asset.name,
+            type: asset.type,
+            path: entryPath,
+          });
+        }
+      } catch (err) {
+        console.warn('Could not archive asset:', asset.name, err);
+      }
+    }
+
+    const bundleData = {
+      format: 'beras-visualizer-project',
+      version: '1.0.0',
+      exportedAt: Date.now(),
+      project: $state.snapshot(this.project),
+      manifest: manifestAssets,
+    };
+    files['project.json'] = strToU8(JSON.stringify(bundleData, null, 2));
+
+    const zipped = zipSync(files, { level: 0 });
+    const blob = new Blob([zipped], { type: 'application/octet-stream' });
+    await saveBlobDesktopOrBrowser(blob, `${sanitized}.beras`);
+  }
+
+  /**
+   * Export visual styling preset (.bvp) without media assets
+   */
+  async exportProjectPreset(): Promise<void> {
+    const sanitized = (this.project.title || 'preset').toLowerCase().replace(/[^a-z0-9_-]/g, '_');
+    const presetData = {
+      format: 'beras-visualizer-preset',
+      version: '1.0.0',
+      exportedAt: Date.now(),
+      project: $state.snapshot(this.project),
+    };
+    const jsonStr = JSON.stringify(presetData, null, 2);
+    const blob = new Blob([jsonStr], { type: 'application/json' });
+    await saveBlobDesktopOrBrowser(blob, `${sanitized}.bvp`);
+  }
+
   exportProjectJSON() {
     const jsonStr = JSON.stringify(this.project, null, 2);
     const blob = new Blob([jsonStr], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
     const sanitized = (this.project.title || 'project').toLowerCase().replace(/[^a-z0-9_-]/g, '_');
-    a.download = `${sanitized}_config.json`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    setTimeout(() => URL.revokeObjectURL(url), 3000);
+    saveBlobDesktopOrBrowser(blob, `${sanitized}_config.json`);
+  }
+
+  /**
+   * Universal project opener: loads .beras (package), .bvp (preset), or legacy .json
+   */
+  async importProjectFile(file: File): Promise<void> {
+    const isBeras = file.name.endsWith('.beras') || file.name.endsWith('.zip');
+    if (isBeras) {
+      const buffer = await file.arrayBuffer();
+      const unzipped = unzipSync(new Uint8Array(buffer));
+
+      const projectJsonBytes = unzipped['project.json'];
+      if (!projectJsonBytes) {
+        throw new Error('Format paket .beras tidak valid (project.json tidak ditemukan)');
+      }
+
+      const bundle = JSON.parse(strFromU8(projectJsonBytes));
+      const config: ProjectConfig = bundle.project || bundle;
+      const manifest: Array<{ id: string; name: string; type: string; path: string }> = bundle.manifest || [];
+
+      // Restore assets into IndexedDB
+      for (const assetMeta of manifest) {
+        const fileBytes = unzipped[assetMeta.path];
+        if (fileBytes) {
+          let mime = 'application/octet-stream';
+          if (assetMeta.type === 'audio') mime = 'audio/mpeg';
+          else if (assetMeta.type === 'video') mime = 'video/mp4';
+          else if (assetMeta.type === 'image') mime = 'image/png';
+
+          const assetBlob = new Blob([fileBytes], { type: mime });
+          await db.assets.put({
+            id: assetMeta.id,
+            projectId: config.id || this.project.id,
+            name: assetMeta.name,
+            type: assetMeta.type as any,
+            blob: assetBlob,
+            createdAt: Date.now(),
+          });
+        }
+      }
+
+      this.project = {
+        ...structuredClone(DEFAULT_PROJECT),
+        ...config,
+      };
+
+      await this.rehydrateAssetsFromDB();
+      await this.saveToDB();
+    } else {
+      // .bvp or .json (preset / config only)
+      const text = await file.text();
+      const parsed = JSON.parse(text);
+      const config = parsed.project || parsed;
+
+      this.project = {
+        ...structuredClone(DEFAULT_PROJECT),
+        ...config,
+      };
+
+      await this.rehydrateAssetsFromDB();
+      await this.saveToDB();
+    }
   }
 
   importProjectJSON(file: File): Promise<void> {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = async (e) => {
-        try {
-          const parsed = JSON.parse(e.target?.result as string);
-          if (!parsed.exportSettings || !parsed.background) {
-            throw new Error('Invalid project JSON structure');
-          }
-          this.project = {
-            ...structuredClone(DEFAULT_PROJECT),
-            ...parsed,
-          };
-          await this.rehydrateAssetsFromDB();
-          await this.saveToDB();
-          resolve();
-        } catch (err) {
-          reject(err);
-        }
-      };
-      reader.onerror = reject;
-      reader.readAsText(file);
-    });
+    return this.importProjectFile(file);
   }
+}
+
+async function saveBlobDesktopOrBrowser(blob: Blob, filename: string): Promise<void> {
+  if (isDesktop()) {
+    try {
+      const { invoke } = await import('@tauri-apps/api/core');
+      const chunkSize = 4 * 1024 * 1024;
+      const totalSize = blob.size;
+      let offset = 0;
+
+      while (offset < totalSize) {
+        const isFirst = offset === 0;
+        const end = Math.min(offset + chunkSize, totalSize);
+        const isLast = end >= totalSize;
+        const slice = blob.slice(offset, end);
+        const arrayBuf = await slice.arrayBuffer();
+
+        let binary = '';
+        const bytes = new Uint8Array(arrayBuf);
+        const len = bytes.byteLength;
+        const subChunkSize = 8192;
+        for (let i = 0; i < len; i += subChunkSize) {
+          binary += String.fromCharCode.apply(
+            null,
+            bytes.subarray(i, Math.min(i + subChunkSize, len)) as any
+          );
+        }
+        const base64Chunk = btoa(binary);
+
+        await invoke('save_video_chunk', {
+          filename,
+          base64Chunk,
+          isFirst,
+          isLast,
+        });
+
+        offset = end;
+      }
+      return;
+    } catch (e) {
+      console.warn('Desktop native save failed, using browser download fallback:', e);
+    }
+  }
+
+  // Browser download fallback
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 5000);
 }
 
 export const projectStore = new ProjectState();

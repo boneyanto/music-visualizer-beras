@@ -13,7 +13,7 @@ import { SpectrumRenderer } from '../engine/spectrum';
 import { LyricRenderer } from '../engine/lyrics';
 import { textOverlayManager } from '../engine/textOverlay.svelte';
 import { tracklistOverlayRenderer } from '../engine/tracklistOverlay.svelte';
-import type { ProjectConfig, ImageOverlayItem } from '../types/project';
+import type { ProjectConfig, ImageOverlayItem, VideoOverlayItem } from '../types/project';
 
 // Register AAC Encoder polyfill (critical for Safari/WebKit/Tauri which lack WebCodecs AudioEncoder)
 registerAacEncoder();
@@ -26,6 +26,7 @@ interface RenderRequest {
   frameDuration: number;
   audioRawData?: Float32Array[];
   sampleRate: number;
+  videoFramesMap?: Record<string, ImageBitmap[]>;
 }
 
 self.onmessage = async (e: MessageEvent<RenderRequest | { type: 'CANCEL' }>) => {
@@ -35,7 +36,7 @@ self.onmessage = async (e: MessageEvent<RenderRequest | { type: 'CANCEL' }>) => 
   }
 
   if (e.data.type === 'START_RENDER') {
-    const { project, frequencyFrames, beats, frameDuration, sampleRate } = e.data;
+    const { project, frequencyFrames, beats, frameDuration, sampleRate, videoFramesMap = {} } = e.data;
     const { width, height, fps, videoBitrate } = project.exportSettings;
     const duration = project.audio.duration || 10;
     const totalFrames = Math.floor(duration * fps);
@@ -47,6 +48,8 @@ self.onmessage = async (e: MessageEvent<RenderRequest | { type: 'CANCEL' }>) => 
       self.postMessage({ type: 'ERROR', message: 'Failed to get OffscreenCanvas 2D context' });
       return;
     }
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
 
     // 1. Preload Bitmaps (Zero-copy hardware textures)
     const bgItems = project.background?.items || [];
@@ -104,12 +107,13 @@ self.onmessage = async (e: MessageEvent<RenderRequest | { type: 'CANCEL' }>) => 
     });
 
     const avcCodec = width > 1280 || height > 720 ? 'avc1.640033' : 'avc1.4d0020';
+    const defaultBitrate = width <= 1280 ? 8_000_000 : 14_000_000;
 
     videoEncoder.configure({
       codec: avcCodec,
       width,
       height,
-      bitrate: videoBitrate || (width <= 1280 ? 4_000_000 : 8_000_000),
+      bitrate: videoBitrate || defaultBitrate,
       framerate: fps,
       hardwareAcceleration: 'prefer-hardware',
       latencyMode: 'quality',
@@ -180,7 +184,7 @@ self.onmessage = async (e: MessageEvent<RenderRequest | { type: 'CANCEL' }>) => 
           currentFreq = fallbackFreq;
         }
 
-        // 3. Render Background Image / Multi-Slideshow
+        // 3. Render Background (Image or Video)
         ctx.fillStyle = '#0a0a0c';
         ctx.fillRect(0, 0, width, height);
 
@@ -192,10 +196,22 @@ self.onmessage = async (e: MessageEvent<RenderRequest | { type: 'CANCEL' }>) => 
           bgItems,
           currentTime,
           rawBeatFactor,
-          bgBitmaps
+          bgBitmaps,
+          videoFramesMap
         );
 
-        // 4. Render Image Overlays
+        // 4. Render Video Overlays
+        drawVideoOverlays(
+          ctx,
+          width,
+          height,
+          project.overlays?.videos,
+          currentTime,
+          rawBeatFactor,
+          videoFramesMap
+        );
+
+        // 5. Render Image Overlays
         drawImageOverlays(
           ctx,
           width,
@@ -300,6 +316,11 @@ self.onmessage = async (e: MessageEvent<RenderRequest | { type: 'CANCEL' }>) => 
       bgBitmaps.clear();
       overlayBitmaps.forEach((bmp) => bmp.close());
       overlayBitmaps.clear();
+      if (videoFramesMap) {
+        Object.values(videoFramesMap).forEach((frames) => {
+          frames.forEach((bmp) => { try { bmp.close(); } catch (e) {} });
+        });
+      }
       textOverlayManager?.clearCache?.();
       tracklistOverlayRenderer?.clearCache?.();
 
@@ -325,6 +346,11 @@ self.onmessage = async (e: MessageEvent<RenderRequest | { type: 'CANCEL' }>) => 
       bgBitmaps.clear();
       overlayBitmaps.forEach((bmp) => bmp.close());
       overlayBitmaps.clear();
+      if (videoFramesMap) {
+        Object.values(videoFramesMap).forEach((frames) => {
+          frames.forEach((bmp) => { try { bmp.close(); } catch (e) {} });
+        });
+      }
       textOverlayManager?.clearCache?.();
       tracklistOverlayRenderer?.clearCache?.();
 
@@ -350,7 +376,9 @@ async function preloadBitmaps(
       try {
         const resp = await fetch(item.url);
         const blob = await resp.blob();
-        const bmp = await createImageBitmap(blob);
+        const bmp = await createImageBitmap(blob, {
+          resizeQuality: 'high',
+        });
         map.set(item.id, bmp);
       } catch (err) {
         console.warn('Could not load image bitmap in worker:', err);
@@ -400,18 +428,68 @@ async function encodeAudioTrack(
   }
 }
 
+let workerChromaCanvas: OffscreenCanvas | null = null;
+let workerChromaCtx: OffscreenCanvasRenderingContext2D | null = null;
+
+function renderWorkerChromaKey(
+  targetCtx: OffscreenCanvasRenderingContext2D,
+  source: CanvasImageSource,
+  drawW: number,
+  drawH: number,
+  chroma: { color: string; similarity: number; smoothness: number }
+) {
+  const w = Math.round(drawW);
+  const h = Math.round(drawH);
+  if (w <= 0 || h <= 0) return;
+
+  if (!workerChromaCanvas || workerChromaCanvas.width !== w || workerChromaCanvas.height !== h) {
+    workerChromaCanvas = new OffscreenCanvas(w, h);
+    workerChromaCtx = workerChromaCanvas.getContext('2d', { willReadFrequently: true }) as any;
+  }
+  if (!workerChromaCtx) return;
+
+  workerChromaCtx.clearRect(0, 0, w, h);
+  workerChromaCtx.drawImage(source, 0, 0, w, h);
+  const imgData = workerChromaCtx.getImageData(0, 0, w, h);
+  const data = imgData.data;
+
+  const targetR = parseInt(chroma.color.slice(1, 3), 16) || 0;
+  const targetG = parseInt(chroma.color.slice(3, 5), 16) || 255;
+  const targetB = parseInt(chroma.color.slice(5, 7), 16) || 0;
+
+  const simThreshold = (chroma.similarity || 0.4) * 255;
+  const smooth = (chroma.smoothness || 0.1) * 255;
+
+  for (let i = 0; i < data.length; i += 4) {
+    const r = data[i];
+    const g = data[i + 1];
+    const b = data[i + 2];
+    const diff = Math.sqrt((r - targetR) ** 2 + (g - targetG) ** 2 + (b - targetB) ** 2);
+
+    if (diff < simThreshold) {
+      data[i + 3] = 0;
+    } else if (diff < simThreshold + smooth) {
+      data[i + 3] = Math.round(((diff - simThreshold) / smooth) * 255);
+    }
+  }
+
+  workerChromaCtx.putImageData(imgData, 0, 0);
+  targetCtx.drawImage(workerChromaCanvas, -drawW / 2, -drawH / 2);
+}
+
 /**
- * Draws background image or slideshow transition
+ * Draws background image or video synchronously (zero microtask overhead, full 8x render speed)
  */
 function drawBackground(
   ctx: OffscreenCanvasRenderingContext2D,
   width: number,
   height: number,
   bgConfig: ProjectConfig['background'],
-  bgItems: Array<{ id: string; duration?: number }>,
+  bgItems: Array<{ id: string; type?: string; duration?: number }>,
   currentTime: number,
   rawBeatFactor: number,
-  bgBitmaps: Map<string, ImageBitmap>
+  bgBitmaps: Map<string, ImageBitmap>,
+  videoFramesMap: Record<string, ImageBitmap[]>
 ): void {
   const totalBgItems = bgItems.length;
   if (totalBgItems === 0) return;
@@ -435,45 +513,172 @@ function drawBackground(
     }
   }
 
-  const bmp = bgBitmaps.get(activeItem.id);
-  if (bmp) {
-    const bgSens = bgConfig.beatSensitivity ?? 1.0;
-    const bgBeat = 1.0 + (rawBeatFactor - 1.0) * bgSens;
-    const scaleFactor = bgConfig.followBeat ? 1 + (bgBeat - 1) * 0.03 : 1.0;
+  const bgSens = bgConfig.beatSensitivity ?? 1.0;
+  const bgBeat = 1.0 + (rawBeatFactor - 1.0) * bgSens;
+  const scaleFactor = bgConfig.followBeat ? 1 + (bgBeat - 1) * 0.03 : 1.0;
 
-    const targetScale = Math.max(width / bmp.width, height / bmp.height) * scaleFactor;
-    const drawW = bmp.width * targetScale;
-    const drawH = bmp.height * targetScale;
-    const drawX = (width - drawW) / 2;
-    const drawY = (height - drawH) / 2;
-
-    ctx.save();
-    ctx.globalAlpha = 1.0 - (blendFactor > 0 ? blendFactor * 0.5 : 0);
-    if (bgBrightness !== 1.0) {
-      ctx.filter = `brightness(${bgBrightness})`;
-    }
-    ctx.drawImage(bmp, drawX, drawY, drawW, drawH);
-    ctx.restore();
-  }
+  drawSingleBgItem(
+    ctx,
+    width,
+    height,
+    activeItem,
+    bgConfig.scaleMode,
+    scaleFactor,
+    1.0 - (blendFactor > 0 ? blendFactor * 0.5 : 0),
+    bgBrightness,
+    currentTime,
+    bgBitmaps,
+    videoFramesMap
+  );
 
   // Crossfade next slide
   if (nextItem && blendFactor > 0 && bgConfig.transition === 'crossfade') {
-    const nextBmp = bgBitmaps.get(nextItem.id);
-    if (nextBmp) {
-      const targetScale = Math.max(width / nextBmp.width, height / nextBmp.height);
-      const drawW = nextBmp.width * targetScale;
-      const drawH = nextBmp.height * targetScale;
-      const drawX = (width - drawW) / 2;
-      const drawY = (height - drawH) / 2;
+    drawSingleBgItem(
+      ctx,
+      width,
+      height,
+      nextItem,
+      bgConfig.scaleMode,
+      scaleFactor,
+      blendFactor,
+      bgBrightness,
+      currentTime,
+      bgBitmaps,
+      videoFramesMap
+    );
+  }
+}
 
-      ctx.save();
-      ctx.globalAlpha = blendFactor;
-      if (bgBrightness !== 1.0) {
-        ctx.filter = `brightness(${bgBrightness})`;
-      }
-      ctx.drawImage(nextBmp, drawX, drawY, drawW, drawH);
-      ctx.restore();
+function drawSingleBgItem(
+  ctx: OffscreenCanvasRenderingContext2D,
+  width: number,
+  height: number,
+  item: { id: string; type?: string },
+  scaleMode: string = 'cover',
+  scaleFactor: number,
+  alpha: number,
+  brightness: number,
+  currentTime: number,
+  bgBitmaps: Map<string, ImageBitmap>,
+  videoFramesMap: Record<string, ImageBitmap[]>
+): void {
+  let sourceCanvas: CanvasImageSource | null = null;
+  let natW = width;
+  let natH = height;
+
+  if (item.type === 'video') {
+    const frames = videoFramesMap[item.id];
+    if (frames && frames.length > 0) {
+      const frameIdx = Math.floor(currentTime * 24) % frames.length;
+      sourceCanvas = frames[frameIdx];
+      natW = (sourceCanvas as ImageBitmap).width;
+      natH = (sourceCanvas as ImageBitmap).height;
     }
+  } else {
+    const bmp = bgBitmaps.get(item.id);
+    if (bmp) {
+      sourceCanvas = bmp;
+      natW = bmp.width;
+      natH = bmp.height;
+    }
+  }
+
+  if (!sourceCanvas) return;
+
+  let drawW = width;
+  let drawH = height;
+  let drawX = 0;
+  let drawY = 0;
+
+  if (scaleMode === 'contain') {
+    const scale = Math.min(width / natW, height / natH) * scaleFactor;
+    drawW = natW * scale;
+    drawH = natH * scale;
+    drawX = (width - drawW) / 2;
+    drawY = (height - drawH) / 2;
+  } else {
+    // cover (default)
+    const scale = Math.max(width / natW, height / natH) * scaleFactor;
+    drawW = natW * scale;
+    drawH = natH * scale;
+    drawX = (width - drawW) / 2;
+    drawY = (height - drawH) / 2;
+  }
+
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  if (brightness !== 1.0) {
+    ctx.filter = `brightness(${brightness})`;
+  }
+  ctx.drawImage(sourceCanvas, drawX, drawY, drawW, drawH);
+  ctx.restore();
+}
+
+/**
+ * Draws video sticker overlays synchronously (with position, scale, beat reactivity, animation, and chroma key)
+ */
+function drawVideoOverlays(
+  ctx: OffscreenCanvasRenderingContext2D,
+  width: number,
+  height: number,
+  videos: VideoOverlayItem[] | undefined,
+  currentTime: number,
+  rawBeatFactor: number,
+  videoFramesMap: Record<string, ImageBitmap[]>
+): void {
+  if (!videos || videos.length === 0) return;
+
+  for (const item of videos) {
+    const frames = videoFramesMap[item.id];
+    if (!frames || frames.length === 0) continue;
+
+    const frameIdx = Math.floor(currentTime * 24) % frames.length;
+    const bmp = frames[frameIdx];
+    if (!bmp) continue;
+
+    const sens = item.beatSensitivity ?? 1.0;
+    const beatFactor = 1.0 + (rawBeatFactor - 1.0) * sens;
+    const posX = (item.x ?? 0.5) * width;
+    let posY = (item.y ?? 0.5) * height;
+    let drawAlpha = item.opacity ?? 1.0;
+    let animScale = 1.0;
+
+    // Animation options
+    if (item.animation === 'floating') {
+      posY += Math.sin(currentTime * 2.5 + (item.x ?? 0.5) * 10) * 12;
+    } else if (item.animation === 'pulse-beat') {
+      if (item.followBeat) {
+        animScale = 1.0 + (beatFactor - 1.0) * 0.15;
+      } else {
+        animScale = 1.0 + Math.sin(currentTime * 3) * 0.05;
+      }
+    } else if (item.animation === 'shimmer') {
+      drawAlpha *= 0.6 + Math.sin(currentTime * 4) * 0.4;
+    } else if (item.animation === 'glow-pulse') {
+      drawAlpha *= 0.75 + Math.sin(currentTime * 5) * 0.25;
+    }
+
+    const baseScale = item.scale ?? 1.0;
+    const beatScale = item.followBeat ? 1 + (beatFactor - 1) * 0.2 : 1.0;
+    const scale = baseScale * beatScale * animScale;
+
+    const vidW = bmp.width;
+    const vidH = bmp.height;
+    const drawW = vidW * scale;
+    const drawH = vidH * scale;
+
+    ctx.save();
+    ctx.globalAlpha = drawAlpha;
+    ctx.globalCompositeOperation = (item.blendMode as GlobalCompositeOperation) || 'source-over';
+    ctx.translate(posX, posY);
+
+    if (item.chromaKey?.enabled) {
+      renderWorkerChromaKey(ctx, bmp, drawW, drawH, item.chromaKey);
+    } else {
+      ctx.drawImage(bmp, -drawW / 2, -drawH / 2, drawW, drawH);
+    }
+
+    ctx.restore();
   }
 }
 
