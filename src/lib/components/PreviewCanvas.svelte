@@ -180,19 +180,31 @@
     animId = requestAnimationFrame(renderFrame);
   }
 
-  onMount(() => {
-    // Load existing background assets into BackgroundManager
-    if (projectStore.project.background?.items) {
-      projectStore.project.background.items.forEach((item) => {
-        backgroundManager.loadAsset(item).catch(() => {});
+  $effect(() => {
+    // Automatically load background assets whenever items change or rehydrate
+    const bgItems = projectStore.project.background?.items;
+    if (bgItems && bgItems.length > 0) {
+      bgItems.forEach((item) => {
+        if (item.url) {
+          backgroundManager.loadAsset(item).catch(() => {});
+        }
       });
     }
-    if (projectStore.project.overlays?.images) {
-      projectStore.project.overlays.images.forEach((item) => {
-        imageOverlayManager.preloadImage(item).catch(() => {});
-      });
-    }
+  });
 
+  $effect(() => {
+    // Automatically preload overlay images whenever items change or rehydrate
+    const imgItems = projectStore.project.overlays?.images;
+    if (imgItems && imgItems.length > 0) {
+      imgItems.forEach((item) => {
+        if (item.url) {
+          imageOverlayManager.preloadImage(item).catch(() => {});
+        }
+      });
+    }
+  });
+
+  onMount(() => {
     animId = requestAnimationFrame(renderFrame);
   });
 

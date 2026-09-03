@@ -1,4 +1,5 @@
 import { projectStore } from '../stores/project.svelte';
+import { isDesktop } from '../utils/platform';
 
 export class VideoExporter {
   private worker: Worker | null = null;
@@ -15,7 +16,7 @@ export class VideoExporter {
   public errorMessage = $state<string | null>(null);
 
   startExport(): Promise<Blob> {
-    return new Promise((resolve, reject) => {
+    return new Promise(async (resolve, reject) => {
       this.isExporting = true;
       this.progress = 0;
       this.currentFrame = 0;
@@ -80,12 +81,23 @@ export class VideoExporter {
 
       // Extract Raw Audio Channels from AudioBuffer if available
       let audioRawData: Float32Array[] | undefined = undefined;
+      if (!projectStore.audioBuffer && projectStore.project.audio.tracks.length > 0) {
+        console.log('AudioBuffer missing before export, rebuilding merged audio...');
+        await projectStore.rebuildMergedAudio();
+      }
+
+      const transferables: Transferable[] = [];
       if (projectStore.audioBuffer) {
         const numChannels = projectStore.audioBuffer.numberOfChannels;
         audioRawData = [];
         for (let ch = 0; ch < numChannels; ch++) {
-          audioRawData.push(new Float32Array(projectStore.audioBuffer.getChannelData(ch)));
+          const channelData = new Float32Array(projectStore.audioBuffer.getChannelData(ch));
+          audioRawData.push(channelData);
+          transferables.push(channelData.buffer);
         }
+        console.log(`✅ Audio ready for export: ${numChannels} channels, ${projectStore.audioBuffer.sampleRate}Hz, ${projectStore.audioBuffer.duration.toFixed(1)}s`);
+      } else {
+        console.warn('⚠️ No audioBuffer available for export!');
       }
 
       // Send payload to worker
@@ -97,7 +109,7 @@ export class VideoExporter {
         frameDuration: projectStore.frameDuration,
         audioRawData,
         sampleRate: projectStore.audioBuffer?.sampleRate || 44100,
-      });
+      }, transferables);
     });
   }
 
@@ -120,7 +132,50 @@ export class VideoExporter {
     }
   }
 
-  downloadBlob(blob: Blob, filename: string = 'visualizer.mp4') {
+  async downloadBlob(blob: Blob, filename: string = 'visualizer.mp4'): Promise<string | null> {
+    if (isDesktop()) {
+      try {
+        const { invoke } = await import('@tauri-apps/api/core');
+        const chunkSize = 4 * 1024 * 1024; // 4MB stream chunks (eliminates gigabyte RAM bloat)
+        const totalSize = blob.size;
+        let offset = 0;
+        let lastPath = '';
+
+        while (offset < totalSize) {
+          const isFirst = offset === 0;
+          const end = Math.min(offset + chunkSize, totalSize);
+          const isLast = end >= totalSize;
+          const slice = blob.slice(offset, end);
+          const buffer = await slice.arrayBuffer();
+
+          // Efficient small-chunk base64 conversion without huge array allocations
+          let binary = '';
+          const bytes = new Uint8Array(buffer);
+          const len = bytes.byteLength;
+          const subChunkSize = 0x8000;
+          for (let i = 0; i < len; i += subChunkSize) {
+            binary += String.fromCharCode.apply(null, bytes.subarray(i, Math.min(i + subChunkSize, len)) as any);
+          }
+          const base64Chunk = btoa(binary);
+
+          lastPath = await invoke<string>('save_video_chunk', {
+            filename,
+            base64Chunk,
+            isFirst,
+            isLast,
+          });
+
+          offset = end;
+        }
+
+        console.log('Video saved natively on desktop via stream:', lastPath);
+        return lastPath;
+      } catch (err) {
+        console.warn('Native desktop save failed, falling back to browser download:', err);
+      }
+    }
+
+    // Standard Browser Download
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
@@ -129,6 +184,7 @@ export class VideoExporter {
     a.click();
     document.body.removeChild(a);
     setTimeout(() => URL.revokeObjectURL(url), 5000);
+    return null;
   }
 }
 

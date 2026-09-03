@@ -7,11 +7,15 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "check": "svelte-check --tsconfig ./tsconfig.app.json && tsc -p tsconfig.node.json"
+    "check": "svelte-check --tsconfig ./tsconfig.app.json && tsc -p tsconfig.node.json",
+    "tauri": "PATH=\"$HOME/.cargo/bin:$PATH\" tauri",
+    "desktop:dev": "PATH=\"$HOME/.cargo/bin:$PATH\" tauri dev",
+    "desktop:build": "PATH=\"$HOME/.cargo/bin:$PATH\" tauri build"
   },
   "devDependencies": {
     "@sveltejs/vite-plugin-svelte": "^7.3.0",
     "@tailwindcss/vite": "^4.3.3",
+    "@tauri-apps/cli": "^2.11.4",
     "@tsconfig/svelte": "^5.0.8",
     "@types/node": "^24.13.3",
     "svelte": "^5.56.10",
@@ -21,8 +25,12 @@
   },
   "dependencies": {
     "@lucide/svelte": "^1.38.0",
+    "@mediabunny/aac-encoder": "^1.55.5",
+    "@mediabunny/server": "^1.55.5",
+    "@tauri-apps/api": "^2.11.1",
     "dexie": "^4.4.5",
     "mediabunny": "^1.55.5",
+    "node-av": "^6.1.1",
     "tailwindcss": "^4.3.3"
   }
 }

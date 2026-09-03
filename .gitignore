@@ -28,6 +28,8 @@ dist-ssr
 # Local working files & agent artifacts
 prd.md
 ecosystem.config.cjs
+src-tauri/target
+
 ecosystem.config.json
 .agents
 .claude

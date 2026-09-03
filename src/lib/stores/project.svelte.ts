@@ -1,6 +1,56 @@
 import type { ProjectConfig, AudioTrackItem, TextOverlayItem } from '../types/project';
 import { db } from '../db/database';
 import { AudioAnalyzer } from '../audio/analyzer';
+import { backgroundManager } from '../engine/background.svelte';
+import { imageOverlayManager } from '../engine/imageOverlay.svelte';
+
+/**
+ * Resilient Web Audio decoder supporting WebKit/Safari/Tauri desktop
+ */
+async function decodeAudioDataResilient(source: Blob | ArrayBuffer): Promise<AudioBuffer> {
+  const arrayBuf = source instanceof Blob ? await source.arrayBuffer() : source;
+  const AudioCtxClass = window.AudioContext || (window as any).webkitAudioContext;
+  const ctx = new AudioCtxClass();
+  try {
+    if (ctx.state === 'suspended') {
+      await ctx.resume().catch(() => {});
+    }
+    const bufferCopy = arrayBuf.slice(0);
+    return await new Promise<AudioBuffer>((resolve, reject) => {
+      let settled = false;
+      const res = ctx.decodeAudioData(
+        bufferCopy,
+        (buf) => {
+          if (!settled) {
+            settled = true;
+            resolve(buf);
+          }
+        },
+        (err) => {
+          if (!settled) {
+            settled = true;
+            reject(err);
+          }
+        }
+      );
+      if (res && typeof res.then === 'function') {
+        res.then((buf) => {
+          if (!settled) {
+            settled = true;
+            resolve(buf);
+          }
+        }).catch((err) => {
+          if (!settled) {
+            settled = true;
+            reject(err);
+          }
+        });
+      }
+    });
+  } finally {
+    await ctx.close().catch(() => {});
+  }
+}
 
 const DEFAULT_PROJECT: ProjectConfig = {
   id: 'default-project',
@@ -192,17 +242,13 @@ class ProjectState {
       let b = this.trackBuffers.get(t.id);
       if (!b) {
         try {
-          let arrayBuf: ArrayBuffer | null = null;
-          if (t.file && typeof t.file.arrayBuffer === 'function') {
-            arrayBuf = await t.file.arrayBuffer();
+          if (t.file) {
+            b = await decodeAudioDataResilient(t.file);
+            this.trackBuffers.set(t.id, b);
           } else if (t.url) {
             const resp = await fetch(t.url);
-            arrayBuf = await resp.arrayBuffer();
-          }
-          if (arrayBuf) {
-            const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
-            b = await ctx.decodeAudioData(arrayBuf);
-            await ctx.close();
+            const blob = await resp.blob();
+            b = await decodeAudioDataResilient(blob);
             this.trackBuffers.set(t.id, b);
           }
         } catch (err) {
@@ -412,10 +458,7 @@ class ProjectState {
             track.url = url;
             track.file = new File([storedAsset.blob], track.name, { type: storedAsset.blob.type });
             try {
-              const arrayBuf = await storedAsset.blob.arrayBuffer();
-              const tempCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
-              const decodedBuffer = await tempCtx.decodeAudioData(arrayBuf);
-              await tempCtx.close();
+              const decodedBuffer = await decodeAudioDataResilient(storedAsset.blob);
               this.trackBuffers.set(track.id, decodedBuffer);
             } catch (err) {
               console.warn('Could not decode cached audio track:', track.name, err);
@@ -425,24 +468,30 @@ class ProjectState {
         await this.rebuildMergedAudio();
       }
 
-      // 2. Rehydrate Background Media
+      // 2. Rehydrate Background Media & Preload to BackgroundManager
       if (this.project.background.items && this.project.background.items.length > 0) {
         for (const item of this.project.background.items) {
           const storedAsset = await db.assets.get(item.id);
           if (storedAsset && storedAsset.blob) {
             item.url = URL.createObjectURL(storedAsset.blob);
             item.file = new File([storedAsset.blob], item.name, { type: storedAsset.blob.type });
+            await backgroundManager.loadAsset(item).catch((err) => {
+              console.warn('Could not preload background asset:', item.name, err);
+            });
           }
         }
       }
 
-      // 3. Rehydrate Image Overlays
+      // 3. Rehydrate Image Overlays & Preload to ImageOverlayManager
       if (this.project.overlays.images && this.project.overlays.images.length > 0) {
         for (const img of this.project.overlays.images) {
           const storedAsset = await db.assets.get(img.id);
           if (storedAsset && storedAsset.blob) {
             img.url = URL.createObjectURL(storedAsset.blob);
             img.file = new File([storedAsset.blob], img.name, { type: storedAsset.blob.type });
+            await imageOverlayManager.preloadImage(img).catch((err) => {
+              console.warn('Could not preload overlay asset:', img.name, err);
+            });
           }
         }
       }

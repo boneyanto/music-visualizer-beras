@@ -4,14 +4,19 @@ import {
   BufferTarget,
   EncodedPacket,
   EncodedVideoPacketSource,
-  EncodedAudioPacketSource,
+  AudioSample,
+  AudioSampleSource,
 } from 'mediabunny';
+import { registerAacEncoder } from '@mediabunny/aac-encoder';
 import { ParticleSystem } from '../engine/particles';
 import { SpectrumRenderer } from '../engine/spectrum';
 import { LyricRenderer } from '../engine/lyrics';
 import { textOverlayManager } from '../engine/textOverlay.svelte';
 import { tracklistOverlayRenderer } from '../engine/tracklistOverlay.svelte';
 import type { ProjectConfig, ImageOverlayItem } from '../types/project';
+
+// Register AAC Encoder polyfill (critical for Safari/WebKit/Tauri which lack WebCodecs AudioEncoder)
+registerAacEncoder();
 
 interface RenderRequest {
   type: 'START_RENDER';
@@ -69,10 +74,13 @@ self.onmessage = async (e: MessageEvent<RenderRequest | { type: 'CANCEL' }>) => 
     const videoSource = new EncodedVideoPacketSource('avc');
     output.addVideoTrack(videoSource);
 
-    const hasAudio = e.data.audioRawData && e.data.audioRawData.length > 0;
-    let audioSource: EncodedAudioPacketSource | null = null;
+    const hasAudio = Boolean(e.data.audioRawData && e.data.audioRawData.length > 0);
+    let audioSource: AudioSampleSource | null = null;
     if (hasAudio) {
-      audioSource = new EncodedAudioPacketSource('aac');
+      audioSource = new AudioSampleSource({
+        codec: 'aac',
+        bitrate: project.exportSettings.audioBitrate || 192_000,
+      });
       output.addAudioTrack(audioSource);
     }
 
@@ -117,13 +125,12 @@ self.onmessage = async (e: MessageEvent<RenderRequest | { type: 'CANCEL' }>) => 
       }
     };
 
-    // 3. WebCodecs AudioEncoder
-    if (hasAudio && audioSource && typeof AudioEncoder !== 'undefined') {
+    // 3. Audio Encoding via @mediabunny/aac-encoder (Universally compatible with Safari/WebKit/Tauri & Chrome)
+    if (hasAudio && audioSource) {
       await encodeAudioTrack(
         audioSource,
         e.data.audioRawData!,
-        sampleRate || 44100,
-        project.exportSettings.audioBitrate || 192_000
+        sampleRate || 44100
       );
     }
 
@@ -243,7 +250,14 @@ self.onmessage = async (e: MessageEvent<RenderRequest | { type: 'CANCEL' }>) => 
           duration: Math.round((1 / fps) * 1_000_000),
         });
 
-        // 8. Encode VideoFrame & Close immediately
+        // 8. Backpressure check & Encode VideoFrame
+        // Caps uncompressed frame buffer to <= 20 frames, preventing gigabyte RAM bloat & swap
+        if (videoEncoder.encodeQueueSize > 20) {
+          await new Promise<void>((resolve) => {
+            queueDrainResolver = resolve;
+          });
+        }
+
         videoEncoder.encode(frame, { keyFrame: isKeyFrame });
         frame.close();
 
@@ -347,38 +361,17 @@ async function preloadBitmaps(
 }
 
 /**
- * Encodes audio PCM channels to AAC format via WebCodecs AudioEncoder
+ * Encodes audio PCM channels to AAC format via Mediabunny AAC Encoder
  */
 async function encodeAudioTrack(
-  audioSource: EncodedAudioPacketSource,
+  audioSource: AudioSampleSource,
   channels: Float32Array[],
-  sampleRate: number,
-  bitrate: number
+  sampleRate: number
 ): Promise<void> {
   try {
-    const encoder = new AudioEncoder({
-      output: (chunk, meta) => {
-        try {
-          const packet = EncodedPacket.fromEncodedChunk(chunk);
-          audioSource.add(packet, meta);
-        } catch (err) {
-          console.warn('Audio packet add error:', err);
-        }
-      },
-      error: (e) => {
-        console.warn('AudioEncoder error:', e);
-      },
-    });
-
-    encoder.configure({
-      codec: 'mp4a.40.2',
-      sampleRate,
-      numberOfChannels: channels.length,
-      bitrate,
-    });
-
     const numChannels = channels.length;
     const totalAudioSamples = channels[0].length;
+    console.log(`Encoding audio track: ${numChannels}ch, ${totalAudioSamples} samples, ${sampleRate}Hz, ${(totalAudioSamples / sampleRate).toFixed(1)}s`);
     const chunkSize = 2048;
 
     let sampleOffset = 0;
@@ -389,25 +382,21 @@ async function encodeAudioTrack(
         planarBuffer.set(channels[ch].subarray(sampleOffset, sampleOffset + count), ch * count);
       }
 
-      const audioData = new AudioData({
+      const sample = new AudioSample({
+        data: planarBuffer,
         format: 'f32-planar',
         sampleRate,
-        numberOfFrames: count,
         numberOfChannels: numChannels,
-        timestamp: Math.round((sampleOffset / sampleRate) * 1_000_000),
-        data: planarBuffer,
+        timestamp: sampleOffset / sampleRate,
       });
 
-      encoder.encode(audioData);
-      audioData.close();
-
+      await audioSource.add(sample);
       sampleOffset += count;
     }
 
-    await encoder.flush();
-    encoder.close();
+    console.log('Audio track encoded successfully via @mediabunny/aac-encoder!');
   } catch (audioErr) {
-    console.warn('Audio encoding skipped/failed:', audioErr);
+    console.error('Audio encoding failed:', audioErr);
   }
 }
 

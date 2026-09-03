@@ -6,8 +6,12 @@ export class BackgroundManager {
 
   async loadAsset(item: BackgroundItem): Promise<HTMLImageElement | HTMLVideoElement> {
     if (item.type === 'image') {
-      if (this.imageCache.has(item.id)) {
-        return this.imageCache.get(item.id)! as HTMLImageElement;
+      const existing = this.imageCache.get(item.id) as HTMLImageElement | undefined;
+      if (existing && existing.src === item.url && existing.complete && existing.naturalWidth > 0) {
+        return existing;
+      }
+      if (existing) {
+        this.releaseAsset(item.id);
       }
       return new Promise((resolve, reject) => {
         const img = new Image();
@@ -17,11 +21,18 @@ export class BackgroundManager {
           this.imageCache.set(item.id, img);
           resolve(img);
         };
-        img.onerror = reject;
+        img.onerror = (err) => {
+          console.warn('Failed to load background image:', item.name, err);
+          reject(err);
+        };
       });
     } else {
-      if (this.videoCache.has(item.id)) {
-        return this.videoCache.get(item.id)!;
+      const existing = this.videoCache.get(item.id);
+      if (existing && existing.src === item.url && existing.readyState >= 2) {
+        return existing;
+      }
+      if (existing) {
+        this.releaseAsset(item.id);
       }
       const vid = document.createElement('video');
       vid.crossOrigin = 'anonymous';

@@ -19,11 +19,13 @@
   } from '@lucide/svelte';
 
   let exportedBlob = $state<Blob | null>(null);
+  let savedFilePath = $state<string | null>(null);
   let showModal = $state(false);
 
   export function open() {
     showModal = true;
     exportedBlob = null;
+    savedFilePath = null;
     videoExporter.errorMessage = null;
   }
 
@@ -34,6 +36,7 @@
     if (exportedBlob) {
       exportedBlob = null;
     }
+    savedFilePath = null;
     showModal = false;
   }
 
@@ -45,14 +48,14 @@
     try {
       exportedBlob = await videoExporter.startExport();
       if (exportedBlob) {
-        handleDownload();
+        await handleDownload();
       }
     } catch (err: any) {
       console.error('Export error caught:', err);
     }
   }
 
-  function handleDownload(e?: Event) {
+  async function handleDownload(e?: Event) {
     if (e) {
       e.preventDefault();
       e.stopPropagation();
@@ -61,7 +64,7 @@
       const sanitizedTitle = (projectStore.project.title || 'visualizer')
         .toLowerCase()
         .replace(/[^a-z0-9_-]/g, '_');
-      videoExporter.downloadBlob(exportedBlob, `${sanitizedTitle}.mp4`);
+      savedFilePath = await videoExporter.downloadBlob(exportedBlob, `${sanitizedTitle}.mp4`);
     }
   }
 
@@ -268,6 +271,11 @@
               <div class="text-[11px] text-emerald-400/80 mt-0.5">
                 Total waktu render: <strong>{formatDuration(videoExporter.finalRenderTimeSeconds)}</strong> • Ukuran file: {(exportedBlob.size / (1024 * 1024)).toFixed(2)} MB
               </div>
+              {#if savedFilePath}
+                <div class="mt-2 text-[11px] bg-emerald-950/60 p-2 rounded-lg border border-emerald-800/40 text-emerald-200 break-all select-all">
+                  📁 Disimpan di: <strong>{savedFilePath}</strong>
+                </div>
+              {/if}
             </div>
           </div>
         {:else if videoExporter.errorMessage}

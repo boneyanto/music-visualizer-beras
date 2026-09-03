@@ -4,8 +4,12 @@ export class ImageOverlayManager {
   private imageCache = new Map<string, HTMLImageElement>();
 
   async preloadImage(item: ImageOverlayItem): Promise<HTMLImageElement> {
-    if (this.imageCache.has(item.id)) {
-      return this.imageCache.get(item.id)!;
+    const existing = this.imageCache.get(item.id);
+    if (existing && existing.src === item.url && existing.complete && existing.naturalWidth > 0) {
+      return existing;
+    }
+    if (existing) {
+      this.releaseAsset(item.id);
     }
     return new Promise((resolve, reject) => {
       const img = new Image();
@@ -15,7 +19,10 @@ export class ImageOverlayManager {
         this.imageCache.set(item.id, img);
         resolve(img);
       };
-      img.onerror = reject;
+      img.onerror = (err) => {
+        console.warn('Failed to load image overlay:', item.name, err);
+        reject(err);
+      };
     });
   }
 
