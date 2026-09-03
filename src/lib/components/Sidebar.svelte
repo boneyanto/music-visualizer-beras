@@ -23,7 +23,9 @@
     ChevronDown,
     Music,
     FolderOpen,
-    Download
+    Languages,
+    Download,
+    FileText
   } from '@lucide/svelte';
 
   let { onOpenLyrics }: { onOpenLyrics?: () => void } = $props();
@@ -1157,11 +1159,44 @@
           </div>
           <p class="text-[11px] text-neutral-400">Transkripsi otomatis, edit kata, atau impor subtitle .SRT / .VTT eksternal.</p>
           
-          <div class="grid grid-cols-2 gap-2">
+          <!-- Bahasa Audio Transkripsi -->
+          <div class="space-y-1">
+            <div class="flex items-center justify-between text-[11px]">
+              <span class="text-neutral-300 font-medium flex items-center gap-1.5">
+                <Languages class="w-3.5 h-3.5 text-cyan-400" />
+                Bahasa Lagu
+              </span>
+              <span class="text-[10px] text-neutral-500 font-mono">Whisper AI</span>
+            </div>
+            <select 
+              bind:value={projectStore.project.lyrics.config.language}
+              onchange={() => projectStore.saveToDB()}
+              class="w-full bg-neutral-900 border border-neutral-700/80 rounded-lg px-2.5 py-1.5 text-xs text-neutral-200 focus:border-cyan-500 outline-none cursor-pointer"
+            >
+              <option value="id">🇮🇩 Bahasa Indonesia</option>
+              <option value="en">🇺🇸 English</option>
+              <option value="ja">🇯🇵 Japanese (日本語)</option>
+              <option value="ko">🇰🇷 Korean (한국어)</option>
+              <option value="auto">🌐 Auto Detect (Otomatis)</option>
+              <option value="ms">🇲🇾 Bahasa Melayu</option>
+              <option value="ar">🇸🇦 Arabic (العربية)</option>
+              <option value="zh">🇨🇳 Chinese (中文)</option>
+              <option value="es">🇪🇸 Spanish (Español)</option>
+              <option value="fr">🇫🇷 French (Français)</option>
+              <option value="de">🇩🇪 German (Deutsch)</option>
+              <option value="pt">🇵🇹 Portuguese (Português)</option>
+              <option value="ru">🇷🇺 Russian (Русский)</option>
+              <option value="th">🇹🇭 Thai (ไทย)</option>
+              <option value="vi">🇻🇳 Vietnamese (Tiếng Việt)</option>
+              <option value="tl">🇵🇭 Tagalog (Filipino)</option>
+            </select>
+          </div>
+
+          <div class="grid grid-cols-2 gap-2 pt-1">
             <button 
               type="button"
               onclick={() => sidebarSubtitleInput?.click()}
-              class="py-2 bg-neutral-800 hover:bg-neutral-700 text-neutral-200 font-medium rounded-lg flex items-center justify-center gap-1.5 border border-neutral-700 shadow-sm transition-all cursor-pointer"
+              class="py-2 bg-neutral-800 hover:bg-neutral-700 text-neutral-200 font-medium rounded-lg flex items-center justify-center gap-1.5 border border-neutral-700 shadow-sm transition-all cursor-pointer text-xs"
               title="Import file subtitle .srt atau .vtt"
             >
               <FolderOpen class="w-3.5 h-3.5 text-cyan-400" />
@@ -1177,7 +1212,7 @@
 
             <button 
               onclick={() => onOpenLyrics?.()}
-              class="py-2 bg-cyan-500 hover:bg-cyan-400 text-neutral-950 font-semibold rounded-lg flex items-center justify-center gap-1.5 shadow-md shadow-cyan-500/20 transition-all cursor-pointer"
+              class="py-2 bg-cyan-500 hover:bg-cyan-400 text-neutral-950 font-semibold rounded-lg flex items-center justify-center gap-1.5 shadow-md shadow-cyan-500/20 transition-all cursor-pointer text-xs"
             >
               <Type class="w-3.5 h-3.5" />
               Transcribe / Edit

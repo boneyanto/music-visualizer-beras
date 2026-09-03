@@ -100,42 +100,44 @@
       let segments: LyricSegment[];
       let trackFileName = projectStore.project.audio.fileName || 'track_subtitles';
 
-      if (projectStore.audioBuffer) {
-        segments = await GroqService.transcribeAudioBuffer(
-          projectStore.audioBuffer,
-          taskQueuePool.apiKey,
-          'whisper-large-v3-turbo',
-          abortController.signal,
-          (status, percent) => {
-            singleStatusText = status;
-            singleProgressPercent = percent;
-          },
-          selectedLanguage
-        );
-      } else {
-        let blob: Blob | null = null;
-        if (projectStore.project.audio.tracks && projectStore.project.audio.tracks[0]?.file) {
-          blob = projectStore.project.audio.tracks[0].file;
-          trackFileName = projectStore.project.audio.tracks[0].name;
-        } else if (projectStore.project.audio.url) {
-          const res = await fetch(projectStore.project.audio.url);
-          blob = await res.blob();
+        const lang = projectStore.project.lyrics.config.language || selectedLanguage || 'id';
+
+        if (projectStore.audioBuffer) {
+          segments = await GroqService.transcribeAudioBuffer(
+            projectStore.audioBuffer,
+            taskQueuePool.apiKey,
+            'whisper-large-v3-turbo',
+            abortController.signal,
+            (status, percent) => {
+              singleStatusText = status;
+              singleProgressPercent = percent;
+            },
+            lang
+          );
+        } else {
+          let blob: Blob | null = null;
+          if (projectStore.project.audio.tracks && projectStore.project.audio.tracks[0]?.file) {
+            blob = projectStore.project.audio.tracks[0].file;
+            trackFileName = projectStore.project.audio.tracks[0].name;
+          } else if (projectStore.project.audio.url) {
+            const res = await fetch(projectStore.project.audio.url);
+            blob = await res.blob();
+          }
+
+          if (!blob) throw new Error('Audio data is not available. Please re-import track.');
+
+          segments = await GroqService.transcribeAudio(
+            blob,
+            taskQueuePool.apiKey,
+            'whisper-large-v3-turbo',
+            abortController.signal,
+            (status, percent) => {
+              singleStatusText = status;
+              singleProgressPercent = percent;
+            },
+            lang
+          );
         }
-
-        if (!blob) throw new Error('Audio data is not available. Please re-import track.');
-
-        segments = await GroqService.transcribeAudio(
-          blob,
-          taskQueuePool.apiKey,
-          'whisper-large-v3-turbo',
-          abortController.signal,
-          (status, percent) => {
-            singleStatusText = status;
-            singleProgressPercent = percent;
-          },
-          selectedLanguage
-        );
-      }
 
       projectStore.project.lyrics.segments = segments;
       singleProgressPercent = 100;
@@ -288,11 +290,12 @@
       <div class="p-5 overflow-y-auto space-y-4 flex-1 text-xs">
         {#if selectedTab === 'single'}
           <div class="space-y-4">
-            <div class="p-4 rounded-xl bg-neutral-950 border border-neutral-800 space-y-3">
-              <div class="flex items-center justify-between">
+            <div class="p-4 rounded-xl bg-neutral-950 border border-neutral-800 space-y-3.5">
+              <!-- Track Info & Import Subtitle -->
+              <div class="flex items-center justify-between gap-3">
                 <div class="flex items-center gap-3 min-w-0">
-                  <div class="w-8 h-8 rounded-lg bg-neutral-800 flex items-center justify-center text-neutral-400 shrink-0">
-                    <FileText class="w-4 h-4" />
+                  <div class="w-9 h-9 rounded-lg bg-neutral-800 flex items-center justify-center text-neutral-400 shrink-0">
+                    <FileText class="w-4 h-4 text-cyan-400" />
                   </div>
                   <div class="min-w-0">
                     <div class="font-medium text-neutral-200 truncate">
@@ -304,45 +307,53 @@
                   </div>
                 </div>
 
-                <div class="flex items-center gap-2 flex-wrap sm:flex-nowrap">
-                  <!-- Language Selector Dropdown -->
-                  <div class="relative flex items-center">
-                    <div class="absolute left-2.5 pointer-events-none text-neutral-400">
-                      <Languages class="w-3.5 h-3.5 text-cyan-400" />
-                    </div>
-                    <select
-                      bind:value={selectedLanguage}
-                      class="pl-8 pr-2.5 py-2 bg-neutral-800 hover:bg-neutral-700 text-neutral-200 border border-neutral-700 font-medium rounded-xl text-xs outline-none focus:border-cyan-500 transition-colors cursor-pointer"
-                      title="Pilih Bahasa Audio untuk Meningkatkan Akurasi Transkripsi"
-                    >
-                      {#each supportedLanguages as lang}
-                        <option value={lang.code}>{lang.label}</option>
-                      {/each}
-                    </select>
-                  </div>
+                <!-- Import Subtitle (.srt / .vtt) -->
+                <button 
+                  type="button"
+                  onclick={() => subtitleFileInput?.click()}
+                  class="px-3 py-1.5 bg-neutral-800 hover:bg-neutral-700 text-neutral-200 border border-neutral-700 font-medium rounded-lg flex items-center gap-1.5 transition-all cursor-pointer text-xs shrink-0"
+                  title="Import external .srt or .vtt subtitle file"
+                >
+                  <FolderOpen class="w-3.5 h-3.5 text-cyan-400" />
+                  Import .SRT
+                </button>
+                <input 
+                  bind:this={subtitleFileInput}
+                  type="file" 
+                  accept=".srt,.vtt,text/plain"
+                  class="hidden"
+                  onchange={handleImportSubtitleFile}
+                />
+              </div>
 
-                  <!-- Import Subtitle (.srt / .vtt) -->
-                  <button 
-                    type="button"
-                    onclick={() => subtitleFileInput?.click()}
-                    class="px-3 py-2 bg-neutral-800 hover:bg-neutral-700 text-neutral-200 border border-neutral-700 font-medium rounded-xl flex items-center gap-1.5 transition-all cursor-pointer text-xs"
-                    title="Import external .srt or .vtt subtitle file"
+              <!-- Dedicated Language Selector & Transcribe Action Bar -->
+              <div class="p-3 rounded-xl bg-neutral-900 border border-neutral-800/80 flex items-center justify-between gap-3 flex-wrap sm:flex-nowrap">
+                <div class="flex items-center gap-2.5 min-w-[200px]">
+                  <div class="w-7 h-7 rounded-lg bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 flex items-center justify-center shrink-0">
+                    <Languages class="w-4 h-4" />
+                  </div>
+                  <div>
+                    <span class="text-xs font-semibold text-neutral-200 block">Bahasa Lagu / Audio</span>
+                    <span class="text-[10px] text-neutral-400 block">Pilih bahasa audio agar transkripsi lirik akurat</span>
+                  </div>
+                </div>
+
+                <div class="flex items-center gap-2">
+                  <select
+                    bind:value={projectStore.project.lyrics.config.language}
+                    onchange={() => projectStore.saveToDB()}
+                    class="px-3 py-2 bg-neutral-950 border border-neutral-700 text-neutral-200 font-medium rounded-lg text-xs outline-none focus:border-cyan-500 transition-colors cursor-pointer"
+                    title="Pilih Bahasa Audio untuk Transkripsi"
                   >
-                    <FolderOpen class="w-3.5 h-3.5 text-cyan-400" />
-                    Import .SRT
-                  </button>
-                  <input 
-                    bind:this={subtitleFileInput}
-                    type="file" 
-                    accept=".srt,.vtt,text/plain"
-                    class="hidden"
-                    onchange={handleImportSubtitleFile}
-                  />
+                    {#each supportedLanguages as lang}
+                      <option value={lang.code}>{lang.label}</option>
+                    {/each}
+                  </select>
 
                   {#if isSingleLoading}
                     <button 
                       onclick={cancelSingleTranscribe}
-                      class="px-3.5 py-2 bg-rose-950/60 hover:bg-rose-900 text-rose-300 border border-rose-800/80 font-semibold rounded-xl flex items-center gap-1.5 transition-all cursor-pointer"
+                      class="px-3.5 py-2 bg-rose-950/60 hover:bg-rose-900 text-rose-300 border border-rose-800/80 font-semibold rounded-lg flex items-center gap-1.5 transition-all cursor-pointer text-xs"
                     >
                       <Ban class="w-3.5 h-3.5" />
                       Cancel
@@ -351,9 +362,9 @@
                     <button 
                       onclick={handleSingleTranscribe}
                       disabled={!projectStore.project.audio.tracks?.length && !projectStore.project.audio.url && !projectStore.audioBuffer}
-                      class="px-4 py-2 bg-gradient-to-r from-cyan-500 to-indigo-600 hover:from-cyan-400 hover:to-indigo-500 disabled:opacity-50 text-white font-semibold rounded-xl flex items-center gap-2 shadow-lg shadow-cyan-500/20 transition-all active:scale-95 cursor-pointer"
+                      class="px-4 py-2 bg-gradient-to-r from-cyan-500 to-indigo-600 hover:from-cyan-400 hover:to-indigo-500 disabled:opacity-50 text-white font-semibold rounded-lg flex items-center gap-2 shadow-lg shadow-cyan-500/20 transition-all active:scale-95 cursor-pointer text-xs shrink-0"
                     >
-                      <Play class="w-4 h-4 fill-current" />
+                      <Play class="w-3.5 h-3.5 fill-current" />
                       Auto Transcribe
                     </button>
                   {/if}

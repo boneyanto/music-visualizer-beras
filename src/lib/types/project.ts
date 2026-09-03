@@ -97,6 +97,7 @@ export interface LyricConfig {
   animation?: OverlayAnimationType;
   followBeat: boolean;
   beatSensitivity: number;
+  language?: string;
 }
 
 export interface ImageOverlayItem {

@@ -154,6 +154,7 @@ const DEFAULT_PROJECT: ProjectConfig = {
       animation: 'none',
       followBeat: false,
       beatSensitivity: 1.0,
+      language: 'id',
     },
   },
   exportSettings: {
