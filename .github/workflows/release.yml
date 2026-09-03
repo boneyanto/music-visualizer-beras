@@ -17,25 +17,50 @@ on:
           - macos
 
 jobs:
-  build-tauri:
+  build-windows:
+    name: Build Windows (.exe & .msi)
+    if: github.event_name == 'push' || inputs.platform == 'all' || inputs.platform == 'windows'
+    runs-on: windows-latest
     permissions:
       contents: write
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - platform: 'windows-latest'
-            os_name: 'windows'
-            args: ''
-          - platform: 'macos-latest'
-            os_name: 'macos'
-            args: '--target aarch64-apple-darwin'
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-    runs-on: ${{ matrix.platform }}
-    if: |
-      github.event_name == 'push' ||
-      inputs.platform == 'all' ||
-      inputs.platform == matrix.os_name
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'npm'
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: './src-tauri -> target'
+
+      - name: Install Frontend Dependencies
+        run: npm ci
+
+      - name: Build Tauri App Windows
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: 'Music Visualizer Beras ${{ github.ref_name }}'
+          releaseBody: 'Music Visualizer Beras release'
+          releaseDraft: false
+          prerelease: false
+
+  build-macos:
+    name: Build macOS (.dmg)
+    if: github.event_name == 'push' || inputs.platform == 'all' || inputs.platform == 'macos'
+    runs-on: macos-latest
+    permissions:
+      contents: write
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -49,7 +74,7 @@ jobs:
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable
         with:
-          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin' || '' }}
+          targets: 'aarch64-apple-darwin'
 
       - name: Rust cache
         uses: swatinem/rust-cache@v2
@@ -59,7 +84,7 @@ jobs:
       - name: Install Frontend Dependencies
         run: npm ci
 
-      - name: Build Tauri App
+      - name: Build Tauri App macOS
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -69,4 +94,4 @@ jobs:
           releaseBody: 'Music Visualizer Beras release'
           releaseDraft: false
           prerelease: false
-          args: ${{ matrix.args }}
+          args: '--target aarch64-apple-darwin'
