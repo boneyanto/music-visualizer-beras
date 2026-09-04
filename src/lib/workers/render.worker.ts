@@ -151,7 +151,7 @@ self.onmessage = async (e: MessageEvent<RenderRequest | { type: 'CANCEL' }>) => 
     let windowStartTime = renderStartTime;
     let windowStartFrame = 0;
 
-    let workerSmoothedFreq: Uint8Array | null = null;
+    let beatCursor = 0;
 
     try {
       for (let frameIdx = 0; frameIdx < totalFrames; frameIdx++) {
@@ -161,49 +161,38 @@ self.onmessage = async (e: MessageEvent<RenderRequest | { type: 'CANCEL' }>) => 
         const timestampMicroseconds = Math.round(currentTime * 1_000_000);
         const isKeyFrame = frameIdx % (fps * 2) === 0;
 
-        // 1. Determine Beat Hit (Deterministic Exponential Decay)
+        // 1. Determine Beat Hit (O(1) cursor with smooth exponential decay and clean resting clamp)
         let rawBeatFactor = 1.0;
         if (beats.length > 0) {
-          let low = 0, high = beats.length - 1;
-          let closestPastBeat = -1;
-          while (low <= high) {
-            const mid = (low + high) >> 1;
-            if (beats[mid] <= currentTime + 0.02) {
-              closestPastBeat = beats[mid];
-              low = mid + 1;
-            } else {
-              high = mid - 1;
-            }
+          while (beatCursor + 1 < beats.length && beats[beatCursor + 1] <= currentTime + 0.02) {
+            beatCursor++;
           }
-          if (closestPastBeat >= 0) {
-            const deltaT = Math.max(0, currentTime - closestPastBeat);
-            const energy = Math.exp(-deltaT / 0.45);
-            rawBeatFactor = 1.0 + energy * 0.25;
+          const deltaT = currentTime - beats[beatCursor];
+          if (deltaT >= 0 && deltaT < 0.32) {
+            const energy = Math.exp(-deltaT / 0.16);
+            if (energy > 0.01) {
+              rawBeatFactor = 1.0 + energy * 0.25;
+            }
           }
         } else {
           const beatInterval = 0.5;
           const phase = currentTime % beatInterval;
-          const energy = Math.exp(-phase / 0.45);
-          rawBeatFactor = 1.0 + energy * 0.25;
+          if (phase < 0.32) {
+            const energy = Math.exp(-phase / 0.16);
+            if (energy > 0.01) {
+              rawBeatFactor = 1.0 + energy * 0.25;
+            }
+          }
         }
 
-        // 2. Frequency Data for Spectrum with runtime LERP smoothing
+        // 2. Frequency Data for Spectrum (Direct zero-cost read of pre-smoothed frames)
         let currentFreq: Uint8Array;
         if (frequencyFrames.length > 0) {
           const fIdx = Math.min(
             frequencyFrames.length - 1,
             Math.floor(currentTime / frameDuration)
           );
-          const rawTarget = frequencyFrames[fIdx] || fallbackFreq;
-          if (!workerSmoothedFreq || workerSmoothedFreq.length !== rawTarget.length) {
-            workerSmoothedFreq = new Uint8Array(rawTarget.length);
-            workerSmoothedFreq.set(rawTarget);
-          }
-          for (let i = 0; i < rawTarget.length; i++) {
-            const diff = rawTarget[i] - workerSmoothedFreq[i];
-            workerSmoothedFreq[i] += Math.round(diff * (diff > 0 ? 0.6 : 0.2));
-          }
-          currentFreq = workerSmoothedFreq;
+          currentFreq = frequencyFrames[fIdx] || fallbackFreq;
         } else {
           currentFreq = fallbackFreq;
         }
