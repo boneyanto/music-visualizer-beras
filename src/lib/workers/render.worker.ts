@@ -111,7 +111,7 @@ self.onmessage = async (e: MessageEvent<RenderRequest | { type: 'CANCEL' }>) => 
 
     const isMac = typeof navigator !== 'undefined' && /Macintosh|Mac OS X|iPhone|iPad/i.test(navigator.userAgent || '');
 
-    // WebCodecs VideoEncoder: 'quality' on Apple Silicon VideoToolbox for max parallel throughput, 'realtime' on Windows to avoid MFT lookahead stall
+    // WebCodecs VideoEncoder: 'quality' on Apple Silicon VideoToolbox & Intel Lunar Lake/Windows QuickSync for high-throughput parallel execution
     videoEncoder.configure({
       codec: avcCodec,
       width,
@@ -119,13 +119,13 @@ self.onmessage = async (e: MessageEvent<RenderRequest | { type: 'CANCEL' }>) => 
       bitrate: videoBitrate || defaultBitrate,
       framerate: fps,
       hardwareAcceleration: 'prefer-hardware',
-      latencyMode: isMac ? 'quality' : 'realtime',
+      latencyMode: 'quality',
     } as any);
 
-    // Setup zero-latency ondequeue backpressure (pure microsecond resolution on Mac, buffered on Windows)
+    // Setup zero-latency ondequeue backpressure (pure microsecond resolution on Mac & Windows)
     let queueDrainResolver: (() => void) | null = null;
     videoEncoder.ondequeue = () => {
-      const threshold = isMac ? 10 : 16;
+      const threshold = isMac ? 10 : 12;
       if (queueDrainResolver && videoEncoder.encodeQueueSize <= threshold) {
         const resolve = queueDrainResolver;
         queueDrainResolver = null;
@@ -272,16 +272,22 @@ self.onmessage = async (e: MessageEvent<RenderRequest | { type: 'CANCEL' }>) => 
             });
           }
         } else {
-          // Windows Intel Arc / QuickSync: buffered queue with safety fallback
-          if (videoEncoder.encodeQueueSize > 28) {
+          // Windows Intel Arc / Lunar Lake QuickSync: High-throughput backpressure without 15.6ms OS timer penalties
+          if (videoEncoder.encodeQueueSize > 24) {
             await new Promise<void>((resolve) => {
               queueDrainResolver = resolve;
-              setTimeout(() => {
-                if (queueDrainResolver === resolve) {
+              // High-resolution microtask poller: fallback if GPU driver delays ondequeue event without blocking CPU for 15.6ms
+              const checkDrain = () => {
+                if (!queueDrainResolver) return;
+                if (videoEncoder.encodeQueueSize <= 12) {
                   queueDrainResolver = null;
                   resolve();
+                } else {
+                  // Spin in V8 microtask loop (sub-millisecond resolution, 0 OS context switch delay)
+                  queueMicrotask(checkDrain);
                 }
-              }, 10);
+              };
+              queueMicrotask(checkDrain);
             });
           }
         }
