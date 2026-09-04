@@ -22,6 +22,7 @@
   const lyrics = new LyricRenderer();
 
   const fallbackFreq = new Uint8Array(128);
+  let runtimeSmoothedFreq: Uint8Array | null = null;
 
   async function togglePlay() {
     if (projectStore.isPlaying) {
@@ -76,33 +77,58 @@
       }
     }
 
-    // Smooth Continuous Beat Interpolation
-    let rawBeatTarget = 1.0;
+    // Smooth Continuous Beat Interpolation (Deterministic Exponential Decay)
+    let beatFactor = 1.0;
+    const curTime = projectStore.currentTime;
+
     if (projectStore.beats.length > 0) {
-      const curTime = projectStore.currentTime;
-      const nearBeat = projectStore.beats.some((b) => Math.abs(b - curTime) < 0.06);
-      if (nearBeat) {
-        rawBeatTarget = 1.35;
-        isBeatHit = true;
+      const beats = projectStore.beats;
+      let low = 0, high = beats.length - 1;
+      let closestPastBeat = -1;
+      while (low <= high) {
+        const mid = (low + high) >> 1;
+        if (beats[mid] <= curTime + 0.02) {
+          closestPastBeat = beats[mid];
+          low = mid + 1;
+        } else {
+          high = mid - 1;
+        }
+      }
+
+      if (closestPastBeat >= 0) {
+        const deltaT = Math.max(0, curTime - closestPastBeat);
+        // Exponential decay envelope (decay speed 0.25 -> tau = 0.45s)
+        const energy = Math.exp(-deltaT / 0.45);
+        beatFactor = 1.0 + energy * 0.25;
+        isBeatHit = deltaT < 0.08;
       } else {
         isBeatHit = false;
       }
     } else {
-      const beatPhase = (projectStore.currentTime * 2.0) % 1;
-      rawBeatTarget = beatPhase < 0.12 ? 1.25 : 1.0;
-      isBeatHit = beatPhase < 0.12;
+      const beatInterval = 0.5; // 120 BPM fallback
+      const phase = (curTime % beatInterval);
+      const energy = Math.exp(-phase / 0.45);
+      beatFactor = 1.0 + energy * 0.25;
+      isBeatHit = phase < 0.08;
     }
 
-    const beatFactor = 1.0 + (rawBeatTarget - 1.0) * 0.7;
-
-    // Current FFT frequency spectrum
+    // Current FFT frequency spectrum with runtime LERP smoothing
     let currentFreq: Uint8Array;
     if (projectStore.frequencyFrames.length > 0) {
       const frameIdx = Math.min(
         projectStore.frequencyFrames.length - 1,
         Math.floor(projectStore.currentTime / projectStore.frameDuration)
       );
-      currentFreq = projectStore.frequencyFrames[frameIdx] || fallbackFreq;
+      const rawTarget = projectStore.frequencyFrames[frameIdx] || fallbackFreq;
+      if (!runtimeSmoothedFreq || runtimeSmoothedFreq.length !== rawTarget.length) {
+        runtimeSmoothedFreq = new Uint8Array(rawTarget.length);
+        runtimeSmoothedFreq.set(rawTarget);
+      }
+      for (let i = 0; i < rawTarget.length; i++) {
+        const diff = rawTarget[i] - runtimeSmoothedFreq[i];
+        runtimeSmoothedFreq[i] += Math.round(diff * (diff > 0 ? 0.6 : 0.2));
+      }
+      currentFreq = runtimeSmoothedFreq;
     } else {
       for (let i = 0; i < fallbackFreq.length; i++) {
         const wave = Math.sin(projectStore.currentTime * 6 + i * 0.2);

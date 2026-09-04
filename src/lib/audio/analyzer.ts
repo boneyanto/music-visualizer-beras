@@ -132,6 +132,7 @@ export class AudioAnalyzer {
     }
 
     let prevSpectrum = new Float32Array(fftSize / 2).fill(0);
+    let smoothedVisualSpectrum = new Float32Array(fftSize / 2).fill(0);
 
     for (let f = 0; f < frameCount; f++) {
       const offset = f * hopSize;
@@ -143,8 +144,18 @@ export class AudioAnalyzer {
         if (sampleIdx < totalSamples) {
           const sampleVal = channelData[sampleIdx] * window[k * 2];
           spectrum[k] = Math.abs(sampleVal);
-          uintSpectrum[k] = Math.min(255, Math.floor(spectrum[k] * 255 * 8));
         }
+
+        // Asymmetric Temporal Smoothing for visual frequencies:
+        // Fast responsive attack (0.50), gentle buttery release (0.08)
+        const targetVal = spectrum[k];
+        if (targetVal > smoothedVisualSpectrum[k]) {
+          smoothedVisualSpectrum[k] += (targetVal - smoothedVisualSpectrum[k]) * 0.50;
+        } else {
+          smoothedVisualSpectrum[k] += (targetVal - smoothedVisualSpectrum[k]) * 0.08;
+        }
+
+        uintSpectrum[k] = Math.min(255, Math.floor(smoothedVisualSpectrum[k] * 255 * 8));
       }
 
       frequencyFrames[f] = uintSpectrum;

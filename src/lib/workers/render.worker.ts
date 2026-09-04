@@ -151,6 +151,8 @@ self.onmessage = async (e: MessageEvent<RenderRequest | { type: 'CANCEL' }>) => 
     let windowStartTime = renderStartTime;
     let windowStartFrame = 0;
 
+    let workerSmoothedFreq: Uint8Array | null = null;
+
     try {
       for (let frameIdx = 0; frameIdx < totalFrames; frameIdx++) {
         if (encoderError) throw encoderError;
@@ -159,24 +161,49 @@ self.onmessage = async (e: MessageEvent<RenderRequest | { type: 'CANCEL' }>) => 
         const timestampMicroseconds = Math.round(currentTime * 1_000_000);
         const isKeyFrame = frameIdx % (fps * 2) === 0;
 
-        // 1. Determine Beat Hit
+        // 1. Determine Beat Hit (Deterministic Exponential Decay)
         let rawBeatFactor = 1.0;
         if (beats.length > 0) {
-          const nearBeat = beats.some((b) => Math.abs(b - currentTime) < 0.06);
-          if (nearBeat) rawBeatFactor = 1.35;
+          let low = 0, high = beats.length - 1;
+          let closestPastBeat = -1;
+          while (low <= high) {
+            const mid = (low + high) >> 1;
+            if (beats[mid] <= currentTime + 0.02) {
+              closestPastBeat = beats[mid];
+              low = mid + 1;
+            } else {
+              high = mid - 1;
+            }
+          }
+          if (closestPastBeat >= 0) {
+            const deltaT = Math.max(0, currentTime - closestPastBeat);
+            const energy = Math.exp(-deltaT / 0.45);
+            rawBeatFactor = 1.0 + energy * 0.25;
+          }
         } else {
-          const beatPhase = (currentTime * 2.0) % 1;
-          if (beatPhase < 0.12) rawBeatFactor = 1.25;
+          const beatInterval = 0.5;
+          const phase = currentTime % beatInterval;
+          const energy = Math.exp(-phase / 0.45);
+          rawBeatFactor = 1.0 + energy * 0.25;
         }
 
-        // 2. Frequency Data for Spectrum
+        // 2. Frequency Data for Spectrum with runtime LERP smoothing
         let currentFreq: Uint8Array;
         if (frequencyFrames.length > 0) {
           const fIdx = Math.min(
             frequencyFrames.length - 1,
             Math.floor(currentTime / frameDuration)
           );
-          currentFreq = frequencyFrames[fIdx] || fallbackFreq;
+          const rawTarget = frequencyFrames[fIdx] || fallbackFreq;
+          if (!workerSmoothedFreq || workerSmoothedFreq.length !== rawTarget.length) {
+            workerSmoothedFreq = new Uint8Array(rawTarget.length);
+            workerSmoothedFreq.set(rawTarget);
+          }
+          for (let i = 0; i < rawTarget.length; i++) {
+            const diff = rawTarget[i] - workerSmoothedFreq[i];
+            workerSmoothedFreq[i] += Math.round(diff * (diff > 0 ? 0.6 : 0.2));
+          }
+          currentFreq = workerSmoothedFreq;
         } else {
           currentFreq = fallbackFreq;
         }
