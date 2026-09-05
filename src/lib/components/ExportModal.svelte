@@ -64,7 +64,10 @@
       const sanitizedTitle = (projectStore.project.title || 'visualizer')
         .toLowerCase()
         .replace(/[^a-z0-9_-]/g, '_');
-      savedFilePath = await videoExporter.downloadBlob(exportedBlob, `${sanitizedTitle}.mp4`);
+      const now = new Date();
+      const pad = (n: number) => n.toString().padStart(2, '0');
+      const timestamp = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}_${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
+      savedFilePath = await videoExporter.downloadBlob(exportedBlob, `${timestamp}_${sanitizedTitle}.mp4`);
     }
   }
 

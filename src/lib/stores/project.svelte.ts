@@ -4,6 +4,7 @@ import { AudioAnalyzer } from '../audio/analyzer';
 import { backgroundManager } from '../engine/background.svelte';
 import { imageOverlayManager } from '../engine/imageOverlay.svelte';
 import { videoOverlayManager } from '../engine/videoOverlay.svelte';
+import { fontManager } from '../services/fontManager';
 import { zipSync, unzipSync, strToU8, strFromU8 } from 'fflate';
 import { isDesktop } from '../utils/platform';
 
@@ -155,8 +156,13 @@ const DEFAULT_PROJECT: ProjectConfig = {
       followBeat: false,
       beatSensitivity: 1.0,
       language: 'id',
+      glow: true,
+      stroke: false,
+      strokeColor: '#000000',
+      strokeWidth: 4,
     },
   },
+  customFonts: [],
   exportSettings: {
     resolution: '1920x1080',
     width: 1920,
@@ -427,6 +433,10 @@ class ProjectState {
       animation: 'floating',
       followBeat: true,
       beatSensitivity: 1.0,
+      startTime: 0,
+      endTime: 0,
+      transition: 'none',
+      transitionDuration: 0.5,
     };
     this.project.overlays.texts.push(newText);
     this.saveToDB();
@@ -582,9 +592,49 @@ class ProjectState {
           }
         }
       }
+
+      // 5. Rehydrate Custom Fonts
+      if (this.project.customFonts && this.project.customFonts.length > 0) {
+        await fontManager.rehydrateFonts(this.project.customFonts);
+      }
     } catch (err) {
       console.warn('Asset rehydration error:', err);
     }
+  }
+
+  async addCustomFont(file: File): Promise<string> {
+    const fontName = file.name.replace(/\.[^/.]+$/, '').trim();
+    await fontManager.registerFontFromBlob(fontName, file);
+
+    const assetId = 'font-' + fontName;
+    try {
+      await db.assets.put({
+        id: assetId,
+        projectId: this.project.id,
+        name: file.name,
+        type: 'font',
+        blob: file,
+        createdAt: Date.now(),
+      });
+    } catch (e) {
+      console.warn('Failed to cache font in db:', e);
+    }
+
+    if (!this.project.customFonts) {
+      this.project.customFonts = [];
+    }
+    if (!this.project.customFonts.some((f) => f.name === fontName)) {
+      this.project.customFonts.push({ name: fontName });
+    }
+    await this.saveToDB();
+    return fontName;
+  }
+
+  async removeCustomFont(name: string) {
+    if (!this.project.customFonts) return;
+    this.project.customFonts = this.project.customFonts.filter((f) => f.name !== name);
+    await db.assets.delete('font-' + name).catch(() => {});
+    await this.saveToDB();
   }
 
   /**

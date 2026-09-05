@@ -13,6 +13,7 @@ import { SpectrumRenderer } from '../engine/spectrum';
 import { LyricRenderer } from '../engine/lyrics';
 import { textOverlayManager } from '../engine/textOverlay.svelte';
 import { tracklistOverlayRenderer } from '../engine/tracklistOverlay.svelte';
+import { computeOverlayTransition } from '../utils/transition';
 import type { ProjectConfig, ImageOverlayItem, VideoOverlayItem } from '../types/project';
 
 // Register AAC Encoder polyfill (critical for Safari/WebKit/Tauri which lack WebCodecs AudioEncoder)
@@ -27,6 +28,7 @@ interface RenderRequest {
   audioRawData?: Float32Array[];
   sampleRate: number;
   videoFramesMap?: Record<string, ImageBitmap[]>;
+  fontBuffers?: Array<{ name: string; buffer: ArrayBuffer }>;
 }
 
 self.onmessage = async (e: MessageEvent<RenderRequest | { type: 'CANCEL' }>) => {
@@ -36,10 +38,24 @@ self.onmessage = async (e: MessageEvent<RenderRequest | { type: 'CANCEL' }>) => 
   }
 
   if (e.data.type === 'START_RENDER') {
-    const { project, frequencyFrames, beats, frameDuration, sampleRate, videoFramesMap = {} } = e.data;
+    const { project, frequencyFrames, beats, frameDuration, sampleRate, videoFramesMap = {}, fontBuffers = [] } = e.data;
     const { width, height, fps, videoBitrate } = project.exportSettings;
     const duration = project.audio.duration || 10;
     const totalFrames = Math.floor(duration * fps);
+
+    // Register custom fonts in Web Worker context if provided
+    if (fontBuffers.length > 0 && typeof (self as any).FontFace !== 'undefined') {
+      for (const fb of fontBuffers) {
+        try {
+          const fontFace = new (self as any).FontFace(fb.name, fb.buffer);
+          await fontFace.load();
+          (self as any).fonts.add(fontFace);
+          console.log(`[Worker] Loaded custom font: ${fb.name}`);
+        } catch (fErr) {
+          console.warn(`[Worker] Could not register custom font ${fb.name}:`, fErr);
+        }
+      }
+    }
 
     // Hardware-accelerated OffscreenCanvas
     const canvas = new OffscreenCanvas(width, height);
@@ -553,7 +569,6 @@ function drawBackground(
     bgConfig.scaleMode,
     scaleFactor,
     1.0 - (blendFactor > 0 ? blendFactor * 0.5 : 0),
-    bgBrightness,
     currentTime,
     bgBitmaps,
     videoFramesMap
@@ -569,11 +584,24 @@ function drawBackground(
       bgConfig.scaleMode,
       scaleFactor,
       blendFactor,
-      bgBrightness,
       currentTime,
       bgBitmaps,
       videoFramesMap
     );
+  }
+
+  // Zero-overhead brightness adjustment (solid pass without expensive canvas filter)
+  if (bgBrightness < 0.99) {
+    ctx.save();
+    ctx.fillStyle = `rgba(0, 0, 0, ${Math.min(1.0, 1.0 - bgBrightness)})`;
+    ctx.fillRect(0, 0, width, height);
+    ctx.restore();
+  } else if (bgBrightness > 1.01) {
+    ctx.save();
+    ctx.globalCompositeOperation = 'screen';
+    ctx.fillStyle = `rgba(255, 255, 255, ${Math.min(0.7, (bgBrightness - 1.0) * 0.55)})`;
+    ctx.fillRect(0, 0, width, height);
+    ctx.restore();
   }
 }
 
@@ -585,7 +613,6 @@ function drawSingleBgItem(
   scaleMode: string = 'cover',
   scaleFactor: number,
   alpha: number,
-  brightness: number,
   currentTime: number,
   bgBitmaps: Map<string, ImageBitmap>,
   videoFramesMap: Record<string, ImageBitmap[]>
@@ -635,9 +662,6 @@ function drawSingleBgItem(
 
   ctx.save();
   ctx.globalAlpha = alpha;
-  if (brightness !== 1.0) {
-    ctx.filter = `brightness(${brightness})`;
-  }
   ctx.drawImage(sourceCanvas, drawX, drawY, drawW, drawH);
   ctx.restore();
 }
@@ -657,6 +681,16 @@ function drawVideoOverlays(
   if (!videos || videos.length === 0) return;
 
   for (const item of videos) {
+    const transState = computeOverlayTransition(
+      currentTime,
+      item.startTime,
+      item.endTime,
+      item.transition,
+      item.transitionDuration,
+      height
+    );
+    if (!transState.isVisible) continue;
+
     const frames = videoFramesMap[item.id];
     if (!frames || frames.length === 0) continue;
 
@@ -667,18 +701,18 @@ function drawVideoOverlays(
     const sens = item.beatSensitivity ?? 1.0;
     const beatFactor = 1.0 + (rawBeatFactor - 1.0) * sens;
     const posX = (item.x ?? 0.5) * width;
-    let posY = (item.y ?? 0.5) * height;
-    let drawAlpha = item.opacity ?? 1.0;
-    let animScale = 1.0;
+    let posY = (item.y ?? 0.5) * height + transState.offsetY;
+    let drawAlpha = (item.opacity ?? 1.0) * transState.alphaMultiplier;
+    let animScale = 1.0 * transState.scaleMultiplier;
 
     // Animation options
     if (item.animation === 'floating') {
       posY += Math.sin(currentTime * 2.5 + (item.x ?? 0.5) * 10) * 12;
     } else if (item.animation === 'pulse-beat') {
       if (item.followBeat) {
-        animScale = 1.0 + (beatFactor - 1.0) * 0.15;
+        animScale *= 1.0 + (beatFactor - 1.0) * 0.15;
       } else {
-        animScale = 1.0 + Math.sin(currentTime * 3) * 0.05;
+        animScale *= 1.0 + Math.sin(currentTime * 3) * 0.05;
       }
     } else if (item.animation === 'shimmer') {
       drawAlpha *= 0.6 + Math.sin(currentTime * 4) * 0.4;
@@ -726,24 +760,34 @@ function drawImageOverlays(
 
   const scaleFactor = Math.min(width / 1920, height / 1080);
   for (const imgItem of images) {
+    const transState = computeOverlayTransition(
+      currentTime,
+      imgItem.startTime,
+      imgItem.endTime,
+      imgItem.transition,
+      imgItem.transitionDuration,
+      height
+    );
+    if (!transState.isVisible) continue;
+
     const bmp = overlayBitmaps.get(imgItem.id);
     if (bmp) {
       const sens = imgItem.beatSensitivity ?? 1.0;
       const imgBeat = 1.0 + (rawBeatFactor - 1.0) * sens;
 
       const posX = (imgItem.x ?? 0.5) * width;
-      let posY = (imgItem.y ?? 0.5) * height;
-      let drawAlpha = imgItem.opacity ?? 1.0;
-      let animScale = 1.0;
+      let posY = (imgItem.y ?? 0.5) * height + transState.offsetY;
+      let drawAlpha = (imgItem.opacity ?? 1.0) * transState.alphaMultiplier;
+      let animScale = 1.0 * transState.scaleMultiplier;
 
       // Animation options
       if (imgItem.animation === 'floating') {
         posY += Math.sin(currentTime * 2.5 + (imgItem.x ?? 0.5) * 10) * 12 * scaleFactor;
       } else if (imgItem.animation === 'pulse-beat') {
         if (imgItem.followBeat) {
-          animScale = 1.0 + (imgBeat - 1.0) * 0.15;
+          animScale *= 1.0 + (imgBeat - 1.0) * 0.15;
         } else {
-          animScale = 1.0 + Math.sin(currentTime * 3) * 0.05;
+          animScale *= 1.0 + Math.sin(currentTime * 3) * 0.05;
         }
       } else if (imgItem.animation === 'shimmer') {
         drawAlpha *= 0.6 + Math.sin(currentTime * 4) * 0.4;

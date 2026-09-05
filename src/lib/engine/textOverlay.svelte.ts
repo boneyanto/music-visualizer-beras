@@ -1,4 +1,5 @@
 import type { TextOverlayItem } from '../types/project';
+import { computeOverlayTransition } from '../utils/transition';
 
 interface CachedTextOverlay {
   canvas: OffscreenCanvas;
@@ -75,6 +76,13 @@ export class TextOverlayManager {
         cCtx.shadowOffsetY = shadowOffsetY;
       }
 
+      if (item.stroke) {
+        cCtx.strokeStyle = item.strokeColor || '#000000';
+        cCtx.lineWidth = (item.strokeWidth || 4) * scaleFactor;
+        cCtx.lineJoin = 'round';
+        cCtx.strokeText(item.text, anchorX, anchorY);
+      }
+
       cCtx.fillStyle = item.color || '#ffffff';
       cCtx.fillText(item.text, anchorX, anchorY);
 
@@ -104,6 +112,16 @@ export class TextOverlayManager {
     for (const item of texts) {
       if (!item.text) continue;
 
+      const transState = computeOverlayTransition(
+        currentTime,
+        item.startTime,
+        item.endTime,
+        item.transition,
+        item.transitionDuration,
+        canvasHeight
+      );
+      if (!transState.isVisible) continue;
+
       const sensitivity = item.beatSensitivity ?? 1.0;
       const beatFactor = 1.0 + (rawBeatFactor - 1.0) * sensitivity;
 
@@ -111,17 +129,17 @@ export class TextOverlayManager {
       const cached = this.cache.get(item.id);
       if (cached && item.animation !== 'typewriter' && item.animation !== 'glow-pulse') {
         const posX = item.x * canvasWidth;
-        let posY = item.y * canvasHeight;
-        let drawAlpha = item.opacity ?? 1.0;
-        let animScale = 1.0;
+        let posY = item.y * canvasHeight + transState.offsetY;
+        let drawAlpha = (item.opacity ?? 1.0) * transState.alphaMultiplier;
+        let animScale = 1.0 * transState.scaleMultiplier;
 
         if (item.animation === 'floating') {
           posY += Math.sin(currentTime * 2.5 + item.x * 10) * 12 * scaleFactor;
         } else if (item.animation === 'pulse-beat') {
           if (item.followBeat) {
-            animScale = 1 + (beatFactor - 1) * 0.15;
+            animScale *= 1 + (beatFactor - 1) * 0.15;
           } else {
-            animScale = 1 + Math.sin(currentTime * 3) * 0.05;
+            animScale *= 1 + Math.sin(currentTime * 3) * 0.05;
           }
         } else if (item.animation === 'shimmer') {
           drawAlpha *= (0.6 + Math.sin(currentTime * 4) * 0.4);
@@ -142,10 +160,10 @@ export class TextOverlayManager {
       }
 
       const posX = item.x * canvasWidth;
-      let posY = item.y * canvasHeight;
-      const baseFontSize = (item.fontSize || 36) * scaleFactor;
+      let posY = item.y * canvasHeight + transState.offsetY;
+      const baseFontSize = (item.fontSize || 36) * scaleFactor * transState.scaleMultiplier;
       let finalFontSize = baseFontSize;
-      let drawAlpha = item.opacity ?? 1.0;
+      let drawAlpha = (item.opacity ?? 1.0) * transState.alphaMultiplier;
       let displayText = item.text;
       let customShadowBlur = 8 * scaleFactor;
       let customShadowColor = item.shadowColor || 'rgba(0, 0, 0, 0.9)';
@@ -207,6 +225,13 @@ export class TextOverlayManager {
       }
 
       // 4. Draw Text
+      if (item.stroke) {
+        ctx.strokeStyle = item.strokeColor || '#000000';
+        ctx.lineWidth = (item.strokeWidth || 4) * scaleFactor;
+        ctx.lineJoin = 'round';
+        ctx.strokeText(displayText, 0, 0);
+      }
+
       ctx.fillStyle = item.color || '#ffffff';
       ctx.fillText(displayText, 0, 0);
 

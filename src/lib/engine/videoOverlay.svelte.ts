@@ -1,4 +1,5 @@
 import type { VideoOverlayItem } from '../types/project';
+import { computeOverlayTransition } from '../utils/transition';
 
 export class VideoOverlayManager {
   private videoElements = new Map<string, HTMLVideoElement>();
@@ -71,28 +72,38 @@ export class VideoOverlayManager {
     if (!items || items.length === 0) return;
 
     for (const item of items) {
+      const transState = computeOverlayTransition(
+        currentTime,
+        item.startTime,
+        item.endTime,
+        item.transition,
+        item.transitionDuration,
+        height
+      );
+      if (!transState.isVisible) continue;
+
       const vid = this.videoElements.get(item.id);
       if (!vid || vid.readyState < 2) continue;
 
       const beatFactor = beatFactorMap[item.id] ?? 1.0;
       const posX = (item.x ?? 0.5) * width;
-      let posY = (item.y ?? 0.5) * height;
-      let drawAlpha = item.opacity ?? 1.0;
-      let animScale = 1.0;
+      let posY = (item.y ?? 0.5) * height + transState.offsetY;
+      let drawAlpha = (item.opacity ?? 1.0) * transState.alphaMultiplier;
+      let animScale = 1.0 * transState.scaleMultiplier;
 
       // Animation options
       if (item.animation === 'floating') {
         posY += Math.sin(currentTime * 2.5 + (item.x ?? 0.5) * 10) * 12;
       } else if (item.animation === 'pulse-beat') {
         if (item.followBeat) {
-          animScale = 1.0 + (beatFactor - 1.0) * 0.15;
+          animScale *= 1.0 + (beatFactor - 1.0) * 0.15;
         } else {
-          animScale = 1.0 + Math.sin(currentTime * 3) * 0.05;
+          animScale *= 1.0 + Math.sin(currentTime * 3) * 0.05;
         }
       } else if (item.animation === 'shimmer') {
-        drawAlpha *= (0.6 + Math.sin(currentTime * 4) * 0.4);
+        drawAlpha *= 0.6 + Math.sin(currentTime * 4) * 0.4;
       } else if (item.animation === 'glow-pulse') {
-        drawAlpha *= (0.75 + Math.sin(currentTime * 5) * 0.25);
+        drawAlpha *= 0.75 + Math.sin(currentTime * 5) * 0.25;
       }
 
       const baseScale = item.scale ?? 1.0;

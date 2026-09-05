@@ -203,7 +203,32 @@
     <div class="space-y-3">
 
       <div>
-        <span class="block text-neutral-400 mb-1 font-medium">Typography / Font Style</span>
+        <div class="flex items-center justify-between mb-1">
+          <span class="block text-neutral-400 font-medium">Typography / Font Style</span>
+          <label class="text-[10px] text-cyan-400 hover:text-cyan-300 flex items-center gap-1 cursor-pointer" title="Upload custom font (.ttf)">
+            <Plus class="w-3 h-3" />
+            Upload .TTF
+            <input 
+              type="file" 
+              accept=".ttf,.otf,.woff,.woff2" 
+              class="hidden" 
+              onchange={async (e) => {
+                const target = e.target as HTMLInputElement;
+                if (target.files && target.files[0]) {
+                  try {
+                    const name = await projectStore.addCustomFont(target.files[0]);
+                    fontFamily = name;
+                    renderCanvas();
+                    alert(`Font "${name}" berhasil diunggah dan dipilih!`);
+                  } catch (err: any) {
+                    alert('Gagal memuat font: ' + err.message);
+                  }
+                  target.value = '';
+                }
+              }} 
+            />
+          </label>
+        </div>
         <select 
           bind:value={fontFamily}
           class="w-full bg-neutral-950 border border-neutral-800 rounded-lg p-2 text-neutral-100 focus:border-cyan-500 outline-none cursor-pointer"
@@ -216,6 +241,11 @@
           <option value="Space Grotesk">Space Grotesk (Tech / Cyber)</option>
           <option value="Playfair Display">Playfair Display (Elegant Serif)</option>
           <option value="Roboto Mono">Roboto Mono (Retro Monospace)</option>
+          {#if projectStore.project.customFonts}
+            {#each projectStore.project.customFonts as cf}
+              <option value={cf.name}>{cf.name} (Custom)</option>
+            {/each}
+          {/if}
         </select>
       </div>
 

@@ -557,6 +557,20 @@
           </div>
         </div>
 
+        <!-- Mirror Symmetrical -->
+        <div class="p-3 bg-neutral-950/60 rounded-lg border border-neutral-800/80 flex items-center justify-between">
+          <div>
+            <span class="text-neutral-300 font-medium block">Mirror Mode</span>
+            <span class="text-[10px] text-neutral-500 block">Spektrum simetris kiri & kanan</span>
+          </div>
+          <input 
+            type="checkbox" 
+            bind:checked={projectStore.project.overlays.spectrum.mirror}
+            onchange={() => projectStore.saveToDB()}
+            class="accent-cyan-500 w-4 h-4 cursor-pointer"
+          />
+        </div>
+
         <!-- Follow Beat -->
         <div class="p-3 bg-neutral-950/60 rounded-lg border border-neutral-800/80 space-y-2">
           <div class="flex items-center justify-between">
@@ -832,6 +846,65 @@
                   <span class="text-neutral-500 block">Opacity: {Math.round(vid.opacity * 100)}%</span>
                   <input type="range" min="0.1" max="1.0" step="0.05" bind:value={vid.opacity} onchange={() => projectStore.saveToDB()} class="w-full accent-cyan-500 cursor-pointer" />
                 </div>
+
+                <!-- Start & End Time (Muncul & Menghilang) -->
+                <div class="grid grid-cols-2 gap-2 text-[11px] pt-1.5 border-t border-neutral-900">
+                  <div>
+                    <span class="text-neutral-500 block mb-0.5">Muncul (detik)</span>
+                    <input 
+                      type="number" 
+                      min="0" 
+                      step="0.5" 
+                      placeholder="0s" 
+                      bind:value={vid.startTime} 
+                      onchange={() => projectStore.saveToDB()} 
+                      class="w-full bg-neutral-900 border border-neutral-800 rounded px-2 py-1 text-neutral-200 outline-none"
+                    />
+                  </div>
+                  <div>
+                    <span class="text-neutral-500 block mb-0.5">Hilang (detik)</span>
+                    <input 
+                      type="number" 
+                      min="0" 
+                      step="0.5" 
+                      placeholder="Semua" 
+                      bind:value={vid.endTime} 
+                      onchange={() => projectStore.saveToDB()} 
+                      class="w-full bg-neutral-900 border border-neutral-800 rounded px-2 py-1 text-neutral-200 outline-none"
+                    />
+                  </div>
+                </div>
+
+                <!-- Transition Animation -->
+                <div class="grid grid-cols-2 gap-2 text-[11px] pt-1.5 border-t border-neutral-900">
+                  <div>
+                    <span class="text-neutral-500 block mb-0.5">Transisi</span>
+                    <select 
+                      bind:value={vid.transition} 
+                      onchange={() => projectStore.saveToDB()} 
+                      class="w-full bg-neutral-900 border border-neutral-800 rounded p-1 text-neutral-200 outline-none cursor-pointer text-[10px]"
+                    >
+                      <option value="none">None</option>
+                      <option value="fade">Fade</option>
+                      <option value="zoom">Zoom</option>
+                      <option value="slide-up">Slide Up</option>
+                      <option value="slide-down">Slide Down</option>
+                    </select>
+                  </div>
+                  <div>
+                    <span class="text-neutral-500 block mb-0.5">Durasi Transisi</span>
+                    <input 
+                      type="number" 
+                      min="0.1" 
+                      max="3.0" 
+                      step="0.1" 
+                      placeholder="0.5s" 
+                      bind:value={vid.transitionDuration} 
+                      onchange={() => projectStore.saveToDB()} 
+                      class="w-full bg-neutral-900 border border-neutral-800 rounded px-2 py-1 text-neutral-200 outline-none"
+                    />
+                  </div>
+                </div>
               </div>
             {/each}
 
@@ -936,6 +1009,65 @@
                     />
                   </div>
                 {/if}
+
+                <!-- Start & End Time (Muncul & Menghilang) -->
+                <div class="grid grid-cols-2 gap-2 text-[11px] pt-1.5 border-t border-neutral-900">
+                  <div>
+                    <span class="text-neutral-500 block mb-0.5">Muncul (detik)</span>
+                    <input 
+                      type="number" 
+                      min="0" 
+                      step="0.5" 
+                      placeholder="0s" 
+                      bind:value={img.startTime} 
+                      onchange={() => projectStore.saveToDB()} 
+                      class="w-full bg-neutral-900 border border-neutral-800 rounded px-2 py-1 text-neutral-200 outline-none"
+                    />
+                  </div>
+                  <div>
+                    <span class="text-neutral-500 block mb-0.5">Hilang (detik)</span>
+                    <input 
+                      type="number" 
+                      min="0" 
+                      step="0.5" 
+                      placeholder="Semua" 
+                      bind:value={img.endTime} 
+                      onchange={() => projectStore.saveToDB()} 
+                      class="w-full bg-neutral-900 border border-neutral-800 rounded px-2 py-1 text-neutral-200 outline-none"
+                    />
+                  </div>
+                </div>
+
+                <!-- Transition Animation -->
+                <div class="grid grid-cols-2 gap-2 text-[11px] pt-1.5 border-t border-neutral-900">
+                  <div>
+                    <span class="text-neutral-500 block mb-0.5">Transisi</span>
+                    <select 
+                      bind:value={img.transition} 
+                      onchange={() => projectStore.saveToDB()} 
+                      class="w-full bg-neutral-900 border border-neutral-800 rounded p-1 text-neutral-200 outline-none cursor-pointer text-[10px]"
+                    >
+                      <option value="none">None</option>
+                      <option value="fade">Fade</option>
+                      <option value="zoom">Zoom</option>
+                      <option value="slide-up">Slide Up</option>
+                      <option value="slide-down">Slide Down</option>
+                    </select>
+                  </div>
+                  <div>
+                    <span class="text-neutral-500 block mb-0.5">Durasi Transisi</span>
+                    <input 
+                      type="number" 
+                      min="0.1" 
+                      max="3.0" 
+                      step="0.1" 
+                      placeholder="0.5s" 
+                      bind:value={img.transitionDuration} 
+                      onchange={() => projectStore.saveToDB()} 
+                      class="w-full bg-neutral-900 border border-neutral-800 rounded px-2 py-1 text-neutral-200 outline-none"
+                    />
+                  </div>
+                </div>
               </div>
             {/each}
           </div>
@@ -950,13 +1082,36 @@
             <Type class="w-3.5 h-3.5 text-cyan-400" />
             Text Overlays ({projectStore.project.overlays.texts?.length || 0})
           </span>
-          <button 
-            onclick={() => projectStore.addTextOverlay()}
-            class="px-2.5 py-1 rounded-lg bg-cyan-500 hover:bg-cyan-400 text-neutral-950 text-xs font-semibold flex items-center gap-1 transition-colors cursor-pointer"
-          >
-            <Plus class="w-3.5 h-3.5" />
-            Add Text
-          </button>
+          <div class="flex items-center gap-2">
+            <label class="px-2 py-1 rounded bg-neutral-800 hover:bg-neutral-700 text-neutral-300 border border-neutral-700 text-xs font-medium flex items-center gap-1 cursor-pointer transition-colors" title="Upload custom font (.ttf)">
+              <Plus class="w-3 h-3 text-cyan-400" />
+              Upload .TTF
+              <input 
+                type="file" 
+                accept=".ttf,.otf,.woff,.woff2" 
+                class="hidden" 
+                onchange={async (e) => {
+                  const target = e.target as HTMLInputElement;
+                  if (target.files && target.files[0]) {
+                    try {
+                      const name = await projectStore.addCustomFont(target.files[0]);
+                      alert(`Font "${name}" berhasil diunggah!`);
+                    } catch (err: any) {
+                      alert('Gagal memuat font: ' + err.message);
+                    }
+                    target.value = '';
+                  }
+                }} 
+              />
+            </label>
+            <button 
+              onclick={() => projectStore.addTextOverlay()}
+              class="px-2.5 py-1 rounded-lg bg-cyan-500 hover:bg-cyan-400 text-neutral-950 text-xs font-semibold flex items-center gap-1 transition-colors cursor-pointer"
+            >
+              <Plus class="w-3.5 h-3.5" />
+              Add Text
+            </button>
+          </div>
         </div>
 
         <div class="space-y-3 max-h-[calc(100vh-220px)] overflow-y-auto">
@@ -996,6 +1151,11 @@
                     <option value="Space Grotesk">Space Grotesk</option>
                     <option value="Playfair Display">Playfair Display</option>
                     <option value="Roboto Mono">Roboto Mono</option>
+                    {#if projectStore.project.customFonts}
+                      {#each projectStore.project.customFonts as cf}
+                        <option value={cf.name}>{cf.name} (Custom)</option>
+                      {/each}
+                    {/if}
                   </select>
                 </div>
 
@@ -1090,38 +1250,121 @@
                 </div>
               </div>
 
-              <!-- Shadow & Follow Beat -->
-              <div class="space-y-1.5 pt-2 border-t border-neutral-900 text-[11px]">
-                <div class="flex items-center justify-between">
-                  <span class="text-neutral-400">Drop Shadow / Glow</span>
-                  <input type="checkbox" bind:checked={item.shadow} onchange={() => projectStore.saveToDB()} class="accent-cyan-500 w-3.5 h-3.5 cursor-pointer" />
-                </div>
+                <!-- Outline / Stroke Option -->
+                <div class="space-y-1.5 pt-1.5 border-t border-neutral-900 text-[11px]">
+                  <div class="flex items-center justify-between">
+                    <span class="text-neutral-400">Text Outline / Stroke</span>
+                    <input type="checkbox" bind:checked={item.stroke} onchange={() => projectStore.saveToDB()} class="accent-cyan-500 w-3.5 h-3.5 cursor-pointer" />
+                  </div>
 
-                <div class="flex items-center justify-between">
-                  <span class="text-neutral-400">Follow Audio Beat</span>
-                  <input type="checkbox" bind:checked={item.followBeat} onchange={() => projectStore.saveToDB()} class="accent-cyan-500 w-3.5 h-3.5 cursor-pointer" />
-                </div>
-
-                {#if item.followBeat}
-                  <div class="space-y-1 text-[11px] pt-1">
-                    <div class="flex justify-between text-neutral-400">
-                      <span>Beat Power (Sensitivity)</span>
-                      <span class="text-cyan-400 font-mono">{(item.beatSensitivity ?? 1.0).toFixed(1)}x</span>
+                  {#if item.stroke}
+                    <div class="grid grid-cols-2 gap-2 pt-1">
+                      <div>
+                        <span class="text-neutral-500 block mb-0.5">Warna Outline</span>
+                        <div class="flex items-center gap-1.5 bg-neutral-900 p-1 rounded border border-neutral-800">
+                          <input type="color" bind:value={item.strokeColor} onchange={() => projectStore.saveToDB()} class="w-4 h-4 bg-transparent border-0 cursor-pointer" />
+                          <span class="font-mono text-[9px]">{item.strokeColor || '#000000'}</span>
+                        </div>
+                      </div>
+                      <div>
+                        <span class="text-neutral-500 block mb-0.5">Tebal: {item.strokeWidth || 4}px</span>
+                        <input type="range" min="1" max="16" step="1" bind:value={item.strokeWidth} onchange={() => projectStore.saveToDB()} class="w-full accent-cyan-500 cursor-pointer mt-1" />
+                      </div>
                     </div>
+                  {/if}
+                </div>
+
+                <!-- Start & End Time (Muncul & Menghilang) -->
+                <div class="grid grid-cols-2 gap-2 text-[11px] pt-1.5 border-t border-neutral-900">
+                  <div>
+                    <span class="text-neutral-500 block mb-0.5">Muncul (detik)</span>
                     <input 
-                      type="range" 
-                      min="0.2" 
-                      max="3.0" 
-                      step="0.1" 
-                      bind:value={item.beatSensitivity} 
+                      type="number" 
+                      min="0" 
+                      step="0.5" 
+                      placeholder="0s" 
+                      bind:value={item.startTime} 
                       onchange={() => projectStore.saveToDB()} 
-                      class="w-full accent-cyan-500 cursor-pointer" 
+                      class="w-full bg-neutral-900 border border-neutral-800 rounded px-2 py-1 text-neutral-200 outline-none"
                     />
                   </div>
-                {/if}
+                  <div>
+                    <span class="text-neutral-500 block mb-0.5">Hilang (detik)</span>
+                    <input 
+                      type="number" 
+                      min="0" 
+                      step="0.5" 
+                      placeholder="Semua" 
+                      bind:value={item.endTime} 
+                      onchange={() => projectStore.saveToDB()} 
+                      class="w-full bg-neutral-900 border border-neutral-800 rounded px-2 py-1 text-neutral-200 outline-none"
+                    />
+                  </div>
+                </div>
+
+                <!-- Transition Animation -->
+                <div class="grid grid-cols-2 gap-2 text-[11px] pt-1.5 border-t border-neutral-900">
+                  <div>
+                    <span class="text-neutral-500 block mb-0.5">Transisi</span>
+                    <select 
+                      bind:value={item.transition} 
+                      onchange={() => projectStore.saveToDB()} 
+                      class="w-full bg-neutral-900 border border-neutral-800 rounded p-1 text-neutral-200 outline-none cursor-pointer text-[10px]"
+                    >
+                      <option value="none">None</option>
+                      <option value="fade">Fade</option>
+                      <option value="zoom">Zoom</option>
+                      <option value="slide-up">Slide Up</option>
+                      <option value="slide-down">Slide Down</option>
+                    </select>
+                  </div>
+                  <div>
+                    <span class="text-neutral-500 block mb-0.5">Durasi Transisi</span>
+                    <input 
+                      type="number" 
+                      min="0.1" 
+                      max="3.0" 
+                      step="0.1" 
+                      placeholder="0.5s" 
+                      bind:value={item.transitionDuration} 
+                      onchange={() => projectStore.saveToDB()} 
+                      class="w-full bg-neutral-900 border border-neutral-800 rounded px-2 py-1 text-neutral-200 outline-none"
+                    />
+                  </div>
+                </div>
+
+                <!-- Shadow & Follow Beat -->
+                <div class="space-y-1.5 pt-2 border-t border-neutral-900 text-[11px]">
+                  <div class="flex items-center justify-between">
+                    <span class="text-neutral-400">Drop Shadow / Glow</span>
+                    <input type="checkbox" bind:checked={item.shadow} onchange={() => projectStore.saveToDB()} class="accent-cyan-500 w-3.5 h-3.5 cursor-pointer" />
+                  </div>
+
+                  <div class="flex items-center justify-between">
+                    <span class="text-neutral-400">Follow Audio Beat</span>
+                    <input type="checkbox" bind:checked={item.followBeat} onchange={() => projectStore.saveToDB()} class="accent-cyan-500 w-3.5 h-3.5 cursor-pointer" />
+                  </div>
+
+                  {#if item.followBeat}
+                    <div class="space-y-1 text-[11px] pt-1">
+                      <div class="flex justify-between text-neutral-400">
+                        <span>Beat Power (Sensitivity)</span>
+                        <span class="text-cyan-400 font-mono">{(item.beatSensitivity ?? 1.0).toFixed(1)}x</span>
+                      </div>
+                      <input 
+                        type="range" 
+                        min="0.2" 
+                        max="3.0" 
+                        step="0.1" 
+                        bind:value={item.beatSensitivity} 
+                        onchange={() => projectStore.saveToDB()} 
+                        class="w-full accent-cyan-500 cursor-pointer" 
+                      />
+                    </div>
+                  {/if}
+                </div>
               </div>
-            </div>
-          {/each}
+            {/each}
 
           {#if !projectStore.project.overlays.texts || projectStore.project.overlays.texts.length === 0}
             <div class="p-6 text-center text-neutral-500 border border-dashed border-neutral-800 rounded-xl text-xs space-y-2">
@@ -1221,7 +1464,31 @@
         </div>
 
         <div>
-          <span class="block text-neutral-400 mb-1.5 font-medium">Typography / Font Family</span>
+          <div class="flex items-center justify-between mb-1.5">
+            <span class="block text-neutral-400 font-medium">Typography / Font Family</span>
+            <label class="text-[10px] text-cyan-400 hover:text-cyan-300 flex items-center gap-1 cursor-pointer" title="Upload custom font (.ttf)">
+              <Plus class="w-3 h-3" />
+              Upload .TTF
+              <input 
+                type="file" 
+                accept=".ttf,.otf,.woff,.woff2" 
+                class="hidden" 
+                onchange={async (e) => {
+                  const target = e.target as HTMLInputElement;
+                  if (target.files && target.files[0]) {
+                    try {
+                      const name = await projectStore.addCustomFont(target.files[0]);
+                      projectStore.project.lyrics.config.fontFamily = name;
+                      alert(`Font "${name}" berhasil diunggah dan dipilih!`);
+                    } catch (err: any) {
+                      alert('Gagal memuat font: ' + err.message);
+                    }
+                    target.value = '';
+                  }
+                }} 
+              />
+            </label>
+          </div>
           <select 
             bind:value={projectStore.project.lyrics.config.fontFamily}
             onchange={() => projectStore.saveToDB()}
@@ -1235,6 +1502,11 @@
             <option value="Space Grotesk">Space Grotesk (Tech)</option>
             <option value="Playfair Display">Playfair Display (Serif)</option>
             <option value="Roboto Mono">Roboto Mono (Monospace)</option>
+            {#if projectStore.project.customFonts}
+              {#each projectStore.project.customFonts as cf}
+                <option value={cf.name}>{cf.name} (Custom)</option>
+              {/each}
+            {/if}
           </select>
         </div>
 
@@ -1308,20 +1580,69 @@
           </div>
         </div>
 
-        <div class="grid grid-cols-2 gap-2">
-          <div>
-            <span class="block text-neutral-400 mb-1">Base Color</span>
-            <div class="flex items-center gap-2 bg-neutral-950 p-1.5 rounded-lg border border-neutral-800">
-              <input type="color" bind:value={projectStore.project.lyrics.config.color} onchange={() => projectStore.saveToDB()} class="w-6 h-6 bg-transparent border-0 cursor-pointer" />
-              <span class="font-mono text-[11px]">{projectStore.project.lyrics.config.color}</span>
+        <!-- Colors, Outline & Glow Controls -->
+        <div class="p-3 bg-neutral-950 rounded-xl border border-neutral-800 space-y-2.5 text-[11px]">
+          <div class="grid grid-cols-2 gap-2">
+            <div>
+              <span class="block text-neutral-400 mb-1">Base Color</span>
+              <div class="flex items-center gap-2 bg-neutral-900 p-1.5 rounded-lg border border-neutral-800">
+                <input type="color" bind:value={projectStore.project.lyrics.config.color} onchange={() => projectStore.saveToDB()} class="w-5 h-5 bg-transparent border-0 cursor-pointer" />
+                <span class="font-mono text-[10px]">{projectStore.project.lyrics.config.color}</span>
+              </div>
+            </div>
+            <div>
+              <span class="block text-neutral-400 mb-1">Highlight Color</span>
+              <div class="flex items-center gap-2 bg-neutral-900 p-1.5 rounded-lg border border-neutral-800">
+                <input type="color" bind:value={projectStore.project.lyrics.config.highlightColor} onchange={() => projectStore.saveToDB()} class="w-5 h-5 bg-transparent border-0 cursor-pointer" />
+                <span class="font-mono text-[10px]">{projectStore.project.lyrics.config.highlightColor}</span>
+              </div>
             </div>
           </div>
-          <div>
-            <span class="block text-neutral-400 mb-1">Highlight Color</span>
-            <div class="flex items-center gap-2 bg-neutral-950 p-1.5 rounded-lg border border-neutral-800">
-              <input type="color" bind:value={projectStore.project.lyrics.config.highlightColor} onchange={() => projectStore.saveToDB()} class="w-6 h-6 bg-transparent border-0 cursor-pointer" />
-              <span class="font-mono text-[11px]">{projectStore.project.lyrics.config.highlightColor}</span>
+
+          <!-- Glow Effect Toggle -->
+          <div class="flex items-center justify-between pt-1.5 border-t border-neutral-900">
+            <div>
+              <span class="text-neutral-300 font-medium block">Efek Glow Lirik</span>
+              <span class="text-[10px] text-neutral-500 block">Efek cahaya pendar / neon pada teks</span>
             </div>
+            <input 
+              type="checkbox" 
+              bind:checked={projectStore.project.lyrics.config.glow}
+              onchange={() => projectStore.saveToDB()}
+              class="accent-cyan-500 w-3.5 h-3.5 cursor-pointer"
+            />
+          </div>
+
+          <!-- Outline / Stroke Toggle -->
+          <div class="space-y-2 pt-1.5 border-t border-neutral-900">
+            <div class="flex items-center justify-between">
+              <div>
+                <span class="text-neutral-300 font-medium block">Text Outline / Stroke</span>
+                <span class="text-[10px] text-neutral-500 block">Garis tepi luar teks lirik</span>
+              </div>
+              <input 
+                type="checkbox" 
+                bind:checked={projectStore.project.lyrics.config.stroke}
+                onchange={() => projectStore.saveToDB()}
+                class="accent-cyan-500 w-3.5 h-3.5 cursor-pointer"
+              />
+            </div>
+
+            {#if projectStore.project.lyrics.config.stroke}
+              <div class="grid grid-cols-2 gap-2 pt-1">
+                <div>
+                  <span class="text-neutral-500 block mb-1">Warna Garis</span>
+                  <div class="flex items-center gap-1.5 bg-neutral-900 p-1 rounded border border-neutral-800">
+                    <input type="color" bind:value={projectStore.project.lyrics.config.strokeColor} onchange={() => projectStore.saveToDB()} class="w-4 h-4 bg-transparent border-0 cursor-pointer" />
+                    <span class="font-mono text-[9px]">{projectStore.project.lyrics.config.strokeColor || '#000000'}</span>
+                  </div>
+                </div>
+                <div>
+                  <span class="text-neutral-500 block mb-1">Ketebalan: {projectStore.project.lyrics.config.strokeWidth || 4}px</span>
+                  <input type="range" min="1" max="16" step="1" bind:value={projectStore.project.lyrics.config.strokeWidth} onchange={() => projectStore.saveToDB()} class="w-full accent-cyan-500 cursor-pointer mt-1" />
+                </div>
+              </div>
+            {/if}
           </div>
         </div>
 

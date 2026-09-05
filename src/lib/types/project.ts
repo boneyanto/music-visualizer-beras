@@ -83,6 +83,13 @@ export interface LyricSegment {
 }
 
 export type OverlayAnimationType = 'none' | 'pulse-beat' | 'floating' | 'shimmer' | 'typewriter' | 'glow-pulse';
+export type OverlayTransitionType = 'none' | 'fade' | 'zoom' | 'slide-up' | 'slide-down';
+
+export interface CustomFontItem {
+  name: string;
+  url?: string;
+  dataBase64?: string;
+}
 
 export interface LyricConfig {
   enabled: boolean;
@@ -98,6 +105,11 @@ export interface LyricConfig {
   followBeat: boolean;
   beatSensitivity: number;
   language?: string;
+  glow?: boolean;
+  glowColor?: string;
+  stroke?: boolean;
+  strokeColor?: string;
+  strokeWidth?: number;
 }
 
 export interface ImageOverlayItem {
@@ -113,6 +125,10 @@ export interface ImageOverlayItem {
   animation?: OverlayAnimationType;
   followBeat: boolean;
   beatSensitivity: number;
+  startTime?: number;
+  endTime?: number;
+  transition?: OverlayTransitionType;
+  transitionDuration?: number; // default 0.5s
 }
 
 export type VideoBlendMode = 'source-over' | 'screen' | 'lighten' | 'multiply' | 'overlay' | 'color-dodge';
@@ -136,6 +152,10 @@ export interface VideoOverlayItem {
   animation?: OverlayAnimationType;
   followBeat: boolean;
   beatSensitivity: number;
+  startTime?: number;
+  endTime?: number;
+  transition?: OverlayTransitionType;
+  transitionDuration?: number;
 }
 
 export type TextAnimationType = 'none' | 'pulse-beat' | 'floating' | 'shimmer' | 'typewriter' | 'glow-pulse';
@@ -157,6 +177,13 @@ export interface TextOverlayItem {
   animation: TextAnimationType;
   followBeat: boolean;
   beatSensitivity: number;
+  startTime?: number;
+  endTime?: number;
+  stroke?: boolean;
+  strokeColor?: string;
+  strokeWidth?: number;
+  transition?: OverlayTransitionType;
+  transitionDuration?: number;
 }
 
 export type NowPlayingAnimationType = 'glow-badge' | 'bounce-pulse' | 'karaoke-gradient' | 'equalizer-indicator' | 'sliding-accent';
@@ -240,5 +267,6 @@ export interface ProjectConfig {
     segments: LyricSegment[];
     config: LyricConfig;
   };
+  customFonts?: CustomFontItem[];
   exportSettings: ExportSettings;
 }

@@ -2,6 +2,7 @@ import { projectStore } from '../stores/project.svelte';
 import { isDesktop } from '../utils/platform';
 import { backgroundManager } from './background.svelte';
 import { videoOverlayManager } from './videoOverlay.svelte';
+import { fontManager } from '../services/fontManager';
 
 export class VideoExporter {
   private worker: Worker | null = null;
@@ -148,6 +149,12 @@ export class VideoExporter {
         }
       }
 
+      // Collect custom fonts for Web Worker
+      const fontBuffers = fontManager.getAllFontBuffers();
+      fontBuffers.forEach((fb) => {
+        transferables.push(fb.buffer);
+      });
+
       // Send payload to worker
       this.worker.postMessage({
         type: 'START_RENDER',
@@ -158,6 +165,7 @@ export class VideoExporter {
         audioRawData,
         sampleRate: projectStore.audioBuffer?.sampleRate || 44100,
         videoFramesMap,
+        fontBuffers,
       }, transferables);
     });
   }

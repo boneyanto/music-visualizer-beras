@@ -29,6 +29,8 @@
   }
 
   onMount(() => {
+    projectStore.loadFromDB();
+
     // 1. Intercept Reload, Tab Close, Window Close, URL navigation
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
       // If user has active tracks, lyrics, or modified configs, prompt confirmation

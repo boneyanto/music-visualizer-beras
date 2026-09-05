@@ -91,10 +91,52 @@ export class LyricRenderer {
     const segProgress = Math.min(1.0, segElapsed / segDuration);
 
     const style = config.style || 'karaoke';
+    const enableGlow = config.glow !== false; // Default true
+    const hasStroke = !!config.stroke;
+    const strokeColor = config.strokeColor || '#000000';
+    const strokeWidth = (config.strokeWidth || 4) * scaleFactor;
+
+    const renderTextWithEffects = (text: string, x: number, y: number, isHighlighted: boolean = false) => {
+      ctx.save();
+      if (enableGlow) {
+        ctx.shadowColor = isHighlighted ? (config.glowColor || config.highlightColor || '#38bdf8') : (config.glowColor || 'rgba(0, 0, 0, 0.9)');
+        ctx.shadowBlur = (isHighlighted ? 14 : 8) * scaleFactor;
+      } else {
+        ctx.shadowColor = 'transparent';
+        ctx.shadowBlur = 0;
+        ctx.shadowOffsetX = 0;
+        ctx.shadowOffsetY = 0;
+      }
+
+      if (hasStroke) {
+        ctx.strokeStyle = strokeColor;
+        ctx.lineWidth = strokeWidth;
+        ctx.lineJoin = 'round';
+        ctx.strokeText(text, x, y);
+      }
+
+      ctx.fillText(text, x, y);
+      ctx.restore();
+    };
 
     // 1. KARAOKE STYLE (Per-word synced highlighting)
-    if (style === 'karaoke' && activeSeg.words && activeSeg.words.length > 0) {
-      const words = activeSeg.words;
+    // Check if activeSeg.words matches activeSeg.text; if not, re-align words
+    let words = activeSeg.words;
+    if (words && words.length > 0) {
+      const wordsJoined = words.map((w) => w.word).join(' ').trim();
+      if (wordsJoined !== activeSeg.text.trim()) {
+        const textParts = activeSeg.text.trim().split(/\s+/).filter(Boolean);
+        const wCount = textParts.length;
+        const totalDur = Math.max(0.1, activeSeg.end - activeSeg.start);
+        words = textParts.map((t, idx) => ({
+          word: t,
+          start: activeSeg.start + (idx / wCount) * totalDur,
+          end: activeSeg.start + ((idx + 1) / wCount) * totalDur,
+        }));
+      }
+    }
+
+    if (style === 'karaoke' && words && words.length > 0) {
       const totalText = words.map((w) => w.word).join(' ');
       const totalWidth = ctx.measureText(totalText).width;
       let currentDrawX = posX - totalWidth / 2;
@@ -115,22 +157,15 @@ export class LyricRenderer {
           const bounceScale = 1 + Math.sin(wordProgress * Math.PI) * 0.15;
 
           ctx.fillStyle = config.highlightColor || '#38bdf8';
-          ctx.shadowColor = config.highlightColor || '#38bdf8';
-          ctx.shadowBlur = 14 * scaleFactor;
-
           ctx.translate(currentDrawX + wordWidth / 2, posY);
           ctx.scale(bounceScale, bounceScale);
-          ctx.fillText(wordText, -wordWidth / 2, 0);
+          renderTextWithEffects(wordText, -wordWidth / 2, 0, true);
         } else if (isPastWord) {
           ctx.fillStyle = config.highlightColor || '#38bdf8';
-          ctx.shadowColor = 'rgba(0, 0, 0, 0.8)';
-          ctx.shadowBlur = 8 * scaleFactor;
-          ctx.fillText(wordText, currentDrawX, posY);
+          renderTextWithEffects(wordText, currentDrawX, posY, true);
         } else {
           ctx.fillStyle = config.color || '#94a3b8';
-          ctx.shadowColor = 'rgba(0, 0, 0, 0.9)';
-          ctx.shadowBlur = 6 * scaleFactor;
-          ctx.fillText(wordText, currentDrawX, posY);
+          renderTextWithEffects(wordText, currentDrawX, posY, false);
         }
 
         ctx.restore();
@@ -153,9 +188,7 @@ export class LyricRenderer {
       ctx.globalAlpha = alpha;
       ctx.textAlign = 'center';
       ctx.fillStyle = config.highlightColor || config.color || '#ffffff';
-      ctx.shadowColor = config.highlightColor || 'rgba(0, 0, 0, 0.9)';
-      ctx.shadowBlur = 12 * scaleFactor;
-      ctx.fillText(activeSeg.text, posX, posY);
+      renderTextWithEffects(activeSeg.text, posX, posY, true);
       ctx.restore();
     }
     // 3. TYPEWRITER STYLE
@@ -167,9 +200,7 @@ export class LyricRenderer {
       ctx.save();
       ctx.textAlign = 'center';
       ctx.fillStyle = config.highlightColor || config.color || '#ffffff';
-      ctx.shadowColor = 'rgba(0, 0, 0, 0.9)';
-      ctx.shadowBlur = 8 * scaleFactor;
-      ctx.fillText(visibleText, posX, posY);
+      renderTextWithEffects(visibleText, posX, posY, false);
       ctx.restore();
     }
     // 4. BOUNCE-WORD / BEAT BOUNCE STYLE
@@ -182,9 +213,7 @@ export class LyricRenderer {
       ctx.scale(scale, scale);
       ctx.textAlign = 'center';
       ctx.fillStyle = config.highlightColor || config.color || '#38bdf8';
-      ctx.shadowColor = config.highlightColor || 'rgba(0, 0, 0, 0.9)';
-      ctx.shadowBlur = 14 * scaleFactor;
-      ctx.fillText(activeSeg.text, 0, 0);
+      renderTextWithEffects(activeSeg.text, 0, 0, true);
       ctx.restore();
     }
     // 5. BOTTOM-BAR / CLASSIC SUBTITLE STYLE
@@ -214,18 +243,14 @@ export class LyricRenderer {
 
       // Text inside bar
       ctx.fillStyle = config.highlightColor || config.color || '#ffffff';
-      ctx.shadowColor = 'rgba(0, 0, 0, 0.9)';
-      ctx.shadowBlur = 6 * scaleFactor;
-      ctx.fillText(activeSeg.text, posX, posY);
+      renderTextWithEffects(activeSeg.text, posX, posY, false);
       ctx.restore();
     }
     // DEFAULT FALLBACK
     else {
       ctx.textAlign = 'center';
       ctx.fillStyle = config.color || '#ffffff';
-      ctx.shadowColor = 'rgba(0, 0, 0, 0.9)';
-      ctx.shadowBlur = 8 * scaleFactor;
-      ctx.fillText(activeSeg.text, posX, posY);
+      renderTextWithEffects(activeSeg.text, posX, posY, false);
     }
 
     ctx.restore();

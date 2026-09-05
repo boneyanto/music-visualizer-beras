@@ -1,4 +1,5 @@
 import type { ImageOverlayItem } from '../types/project';
+import { computeOverlayTransition } from '../utils/transition';
 
 export class ImageOverlayManager {
   private imageCache = new Map<string, HTMLImageElement>();
@@ -56,6 +57,16 @@ export class ImageOverlayManager {
     const scaleFactor = Math.min(width / 1920, height / 1080);
 
     for (const item of items) {
+      const transState = computeOverlayTransition(
+        currentTime,
+        item.startTime,
+        item.endTime,
+        item.transition,
+        item.transitionDuration,
+        height
+      );
+      if (!transState.isVisible) continue;
+
       const img = this.imageCache.get(item.id);
       if (!img) continue;
 
@@ -63,18 +74,18 @@ export class ImageOverlayManager {
       const beatFactor = 1.0 + (rawBeatFactor - 1.0) * sensitivity;
 
       const posX = (item.x ?? 0.5) * width;
-      let posY = (item.y ?? 0.5) * height;
-      let drawAlpha = item.opacity ?? 1.0;
-      let animScale = 1.0;
+      let posY = (item.y ?? 0.5) * height + transState.offsetY;
+      let drawAlpha = (item.opacity ?? 1.0) * transState.alphaMultiplier;
+      let animScale = 1.0 * transState.scaleMultiplier;
 
       // Animation options
       if (item.animation === 'floating') {
         posY += Math.sin(currentTime * 2.5 + (item.x ?? 0.5) * 10) * 12 * scaleFactor;
       } else if (item.animation === 'pulse-beat') {
         if (item.followBeat) {
-          animScale = 1.0 + (beatFactor - 1.0) * 0.15;
+          animScale *= 1.0 + (beatFactor - 1.0) * 0.15;
         } else {
-          animScale = 1.0 + Math.sin(currentTime * 3) * 0.05;
+          animScale *= 1.0 + Math.sin(currentTime * 3) * 0.05;
         }
       } else if (item.animation === 'shimmer') {
         drawAlpha *= (0.6 + Math.sin(currentTime * 4) * 0.4);

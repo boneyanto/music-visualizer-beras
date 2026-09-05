@@ -204,6 +204,37 @@
     close();
   }
 
+  function handleSegmentTextChange(seg: LyricSegment, newText: string) {
+    seg.text = newText;
+    const wordsList = newText.trim().split(/\s+/).filter(Boolean);
+    if (wordsList.length > 0) {
+      const duration = Math.max(0.1, seg.end - seg.start);
+      seg.words = wordsList.map((w, idx) => ({
+        word: w,
+        start: seg.start + (idx / wordsList.length) * duration,
+        end: seg.start + ((idx + 1) / wordsList.length) * duration,
+      }));
+    } else {
+      seg.words = [];
+    }
+    projectStore.saveToDB();
+  }
+
+  function handleSegmentStartChange(seg: LyricSegment, newStartVal: number) {
+    const start = Math.max(0, Number(newStartVal) || 0);
+    seg.start = start;
+    if (seg.end <= start) {
+      seg.end = start + 1.0;
+    }
+    handleSegmentTextChange(seg, seg.text);
+  }
+
+  function handleSegmentEndChange(seg: LyricSegment, newEndVal: number) {
+    const end = Math.max(seg.start + 0.1, Number(newEndVal) || (seg.start + 1.0));
+    seg.end = end;
+    handleSegmentTextChange(seg, seg.text);
+  }
+
   function manualDownloadSRT() {
     if (!projectStore.project.lyrics.segments || projectStore.project.lyrics.segments.length === 0) return;
     const trackFileName = projectStore.project.audio.fileName || 'track_subtitles';
@@ -438,22 +469,50 @@
                 {#each projectStore.project.lyrics.segments as seg, idx}
                   <div class="p-2.5 bg-neutral-950 rounded-lg border border-neutral-800 flex items-start justify-between gap-3 group">
                     <div class="flex-1 min-w-0">
-                      <div class="flex items-center gap-2 mb-1">
-                        <span class="text-[10px] font-mono text-cyan-400 bg-cyan-950/40 px-1.5 py-0.5 rounded border border-cyan-800/40">
-                          {seg.start.toFixed(1)}s - {seg.end.toFixed(1)}s
-                        </span>
+                      <div class="flex items-center gap-2 mb-1.5 flex-wrap">
+                        <div class="flex items-center gap-1 bg-neutral-900 border border-neutral-800 rounded px-1.5 py-0.5 text-[10px] text-neutral-300">
+                          <span class="text-neutral-500 font-mono">Mulai:</span>
+                          <input 
+                            type="number" 
+                            step="0.1" 
+                            min="0" 
+                            value={Number(seg.start.toFixed(2))} 
+                            onchange={(e) => handleSegmentStartChange(seg, Number(e.currentTarget.value))}
+                            class="w-14 bg-transparent text-cyan-400 font-mono text-center outline-none focus:text-white"
+                          />
+                          <span class="text-neutral-500">s</span>
+                        </div>
+
+                        <div class="flex items-center gap-1 bg-neutral-900 border border-neutral-800 rounded px-1.5 py-0.5 text-[10px] text-neutral-300">
+                          <span class="text-neutral-500 font-mono">Selesai:</span>
+                          <input 
+                            type="number" 
+                            step="0.1" 
+                            min="0" 
+                            value={Number(seg.end.toFixed(2))} 
+                            onchange={(e) => handleSegmentEndChange(seg, Number(e.currentTarget.value))}
+                            class="w-14 bg-transparent text-cyan-400 font-mono text-center outline-none focus:text-white"
+                          />
+                          <span class="text-neutral-500">s</span>
+                        </div>
+
                         {#if seg.words}
-                          <span class="text-[10px] text-neutral-500 font-mono">{seg.words.length} words</span>
+                          <span class="text-[10px] text-neutral-500 font-mono">{seg.words.length} kata</span>
                         {/if}
                       </div>
                       <input 
                         type="text" 
-                        bind:value={seg.text} 
+                        value={seg.text} 
+                        oninput={(e) => handleSegmentTextChange(seg, e.currentTarget.value)}
+                        onchange={(e) => handleSegmentTextChange(seg, e.currentTarget.value)}
                         class="w-full bg-transparent text-neutral-200 text-xs outline-none border-b border-transparent focus:border-neutral-700"
                       />
                     </div>
                     <button 
-                      onclick={() => projectStore.project.lyrics.segments.splice(idx, 1)}
+                      onclick={() => {
+                        projectStore.project.lyrics.segments.splice(idx, 1);
+                        projectStore.saveToDB();
+                      }}
                       class="text-neutral-500 hover:text-rose-400 p-1 cursor-pointer"
                     >
                       <Trash2 class="w-3.5 h-3.5" />

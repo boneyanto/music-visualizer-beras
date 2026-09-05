@@ -5,7 +5,7 @@ export interface StoredAsset {
   id: string;
   projectId: string;
   name: string;
-  type: 'image' | 'video' | 'audio';
+  type: 'image' | 'video' | 'audio' | 'font';
   blob: Blob;
   createdAt: number;
 }

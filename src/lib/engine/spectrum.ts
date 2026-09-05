@@ -27,12 +27,29 @@ export class SpectrumRenderer {
 
     const count = Math.min(config.barCount, frequencies.length);
 
+    // If mirror is enabled, create symmetrical frequency buffer (low frequencies in center or mirrored halves)
+    let freqData: Uint8Array | Float32Array = frequencies;
+    if (config.mirror && count > 2) {
+      const mirrored = new Float32Array(count);
+      const half = Math.ceil(count / 2);
+      for (let i = 0; i < half; i++) {
+        // Read low-to-high from original frequencies
+        const srcVal = frequencies[Math.floor((i / half) * (frequencies.length / 2))] || 0;
+        // Place mirrored on left and right sides
+        mirrored[half - 1 - i] = srcVal;
+        if (half + i < count) {
+          mirrored[half + i] = srcVal;
+        }
+      }
+      freqData = mirrored;
+    }
+
     if (config.style === 'circular') {
       const radius = config.radius * scale * (config.followBeat ? 1 + (beatFactor - 1) * 0.08 : 1.0);
       const angleStep = (Math.PI * 2) / count;
 
       for (let i = 0; i < count; i++) {
-        const val = frequencies[i] / 255;
+        const val = freqData[i] / 255;
         const barHeight = Math.max(4 * scaleFactor, val * config.height * scale * spectrumBeatMultiplier);
         const angle = i * angleStep;
 
@@ -61,7 +78,7 @@ export class SpectrumRenderer {
       const baseY = posY;
 
       for (let i = 0; i < count; i++) {
-        const val = frequencies[i] / 255;
+        const val = freqData[i] / 255;
         const barHeight = Math.max(4 * scaleFactor, val * config.height * scale * spectrumBeatMultiplier);
         const x = startX + i * (barWidth + (4 * scaleFactor));
         const y = baseY - barHeight;
@@ -85,7 +102,7 @@ export class SpectrumRenderer {
       ctx.lineJoin = 'round';
 
       for (let i = 0; i < count; i++) {
-        const val = (frequencies[i] - 128) / 128;
+        const val = (freqData[i] - 128) / 128;
         const y = baseY + val * config.height * scale * spectrumBeatMultiplier;
         const x = startX + i * stepX;
         if (i === 0) ctx.moveTo(x, y);
@@ -98,7 +115,7 @@ export class SpectrumRenderer {
       const angleStep = (Math.PI * 2) / count;
 
       for (let i = 0; i < count; i++) {
-        const val = frequencies[i] / 255;
+        const val = freqData[i] / 255;
         const angle = i * angleStep;
         const r = innerRadius + val * (outerRadius - innerRadius) * spectrumBeatMultiplier;
 
@@ -118,7 +135,7 @@ export class SpectrumRenderer {
       const baseY = posY;
 
       for (let i = 0; i < count; i++) {
-        const val = frequencies[i] / 255;
+        const val = freqData[i] / 255;
         const halfHeight = Math.max(3 * scaleFactor, (val * config.height * 0.6 * scale * spectrumBeatMultiplier));
         const x = startX + i * (barWidth + (3 * scaleFactor));
         const yTop = baseY - halfHeight;
@@ -147,7 +164,7 @@ export class SpectrumRenderer {
 
       const points: Array<{ x: number; y: number }> = [];
       for (let i = 0; i < count; i++) {
-        const val = frequencies[i] / 255;
+        const val = freqData[i] / 255;
         const x = startX + i * stepX;
         const y = baseY - val * config.height * scale * spectrumBeatMultiplier;
         points.push({ x, y });
@@ -195,7 +212,7 @@ export class SpectrumRenderer {
       const angleStep = (Math.PI * 2) / count;
 
       for (let i = 0; i < count; i++) {
-        const val = frequencies[i] / 255;
+        const val = freqData[i] / 255;
         const outHeight = Math.max(4 * scaleFactor, val * config.height * scale * spectrumBeatMultiplier);
         const inHeight = Math.max(2 * scaleFactor, val * config.height * 0.4 * scale * spectrumBeatMultiplier);
         const angle = i * angleStep;
@@ -229,7 +246,7 @@ export class SpectrumRenderer {
       const blockHeight = (config.height * scale * 0.8) / totalBlocks;
 
       for (let i = 0; i < count; i++) {
-        const val = frequencies[i] / 255;
+        const val = freqData[i] / 255;
         const litBlocks = Math.round(val * totalBlocks * (config.followBeat ? 1 + (beatFactor - 1) * 0.3 : 1.0));
         const x = startX + i * (barWidth + (3 * scaleFactor));
 
@@ -262,7 +279,7 @@ export class SpectrumRenderer {
       const angleStep = (Math.PI * 2) / count;
 
       for (let i = 0; i < count; i++) {
-        const val = frequencies[i] / 255;
+        const val = freqData[i] / 255;
         const r = baseRadius + val * config.height * 0.7 * scale * spectrumBeatMultiplier;
         const angle = i * angleStep;
 

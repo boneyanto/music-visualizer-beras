@@ -243,6 +243,16 @@
     }
   });
 
+  $effect(() => {
+    // Invalidate text overlay cache whenever texts list or properties change
+    const texts = projectStore.project.overlays?.texts;
+    if (texts) {
+      // Touch properties to track reactivity
+      texts.forEach(t => `${t.text}-${t.fontFamily}-${t.fontSize}-${t.color}-${t.stroke}-${t.strokeWidth}-${t.strokeColor}-${t.shadow}`);
+      textOverlayManager.clearCache();
+    }
+  });
+
   onMount(() => {
     animId = requestAnimationFrame(renderFrame);
   });
