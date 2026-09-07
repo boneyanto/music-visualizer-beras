@@ -86,6 +86,26 @@ export class BackgroundManager {
     }
   }
 
+  syncPlayback(isPlaying: boolean, currentTime: number) {
+    this.videoCache.forEach((vid) => {
+      if (isPlaying) {
+        if (vid.paused) {
+          vid.play().catch(() => {});
+        }
+        const duration = vid.duration || 10;
+        const targetTime = currentTime % duration;
+        // Only seek if drift exceeds 0.4s to prevent continuous seeking freeze
+        if (Math.abs(vid.currentTime - targetTime) > 0.4) {
+          vid.currentTime = targetTime;
+        }
+      } else {
+        if (!vid.paused) {
+          vid.pause();
+        }
+      }
+    });
+  }
+
   render(
     ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
     width: number,

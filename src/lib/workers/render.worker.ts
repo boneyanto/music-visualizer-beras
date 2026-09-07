@@ -28,8 +28,11 @@ interface RenderRequest {
   audioRawData?: Float32Array[];
   sampleRate: number;
   videoFramesMap?: Record<string, ImageBitmap[]>;
+  videoDurationsMap?: Record<string, number>;
   fontBuffers?: Array<{ name: string; buffer: ArrayBuffer }>;
+  isLicensed?: boolean;
 }
+
 
 self.onmessage = async (e: MessageEvent<RenderRequest | { type: 'CANCEL' }>) => {
   if (e.data.type === 'CANCEL') {
@@ -38,10 +41,26 @@ self.onmessage = async (e: MessageEvent<RenderRequest | { type: 'CANCEL' }>) => 
   }
 
   if (e.data.type === 'START_RENDER') {
-    const { project, frequencyFrames, beats, frameDuration, sampleRate, videoFramesMap = {}, fontBuffers = [] } = e.data;
+    const { 
+      project, 
+      frequencyFrames, 
+      beats, 
+      frameDuration, 
+      sampleRate, 
+      videoFramesMap = {}, 
+      videoDurationsMap = {}, 
+      fontBuffers = [], 
+      isLicensed = false 
+    } = e.data;
     const { width, height, fps, videoBitrate } = project.exportSettings;
     const duration = project.audio.duration || 10;
     const totalFrames = Math.floor(duration * fps);
+
+    // Random watermark seed and jump interval for Free Use (0 cost, pure integer math)
+    const watermarkBaseX = Math.floor(0.15 * width + Math.random() * (0.70 * width));
+    const watermarkBaseY = Math.floor(0.15 * height + Math.random() * (0.70 * height));
+    const watermarkSeed = Math.floor(Math.random() * 1000000);
+
 
     // Register custom fonts in Web Worker context if provided
     if (fontBuffers.length > 0 && typeof (self as any).FontFace !== 'undefined') {
@@ -106,6 +125,7 @@ self.onmessage = async (e: MessageEvent<RenderRequest | { type: 'CANCEL' }>) => 
     await output.start();
 
     let encoderError: any = null;
+    let encodedVideoPacketsCount = 0;
 
     // WebCodecs VideoEncoder with Hardware Acceleration & low-latency mode
     const videoEncoder = new VideoEncoder({
@@ -113,6 +133,7 @@ self.onmessage = async (e: MessageEvent<RenderRequest | { type: 'CANCEL' }>) => 
         try {
           const packet = EncodedPacket.fromEncodedChunk(chunk);
           videoSource.add(packet, meta);
+          encodedVideoPacketsCount++;
         } catch (err) {
           encoderError = err;
         }
@@ -122,14 +143,39 @@ self.onmessage = async (e: MessageEvent<RenderRequest | { type: 'CANCEL' }>) => 
       },
     });
 
-    const avcCodec = width > 1280 || height > 720 ? 'avc1.640033' : 'avc1.4d0020';
-    const defaultBitrate = width <= 1280 ? 8_000_000 : 14_000_000;
+    // Try optimal hardware codec profile with automatic graceful fallback to baseline/main
+    const candidateCodecs = width > 1280 || height > 720
+      ? ['avc1.640033', 'avc1.4d002a', 'avc1.42e01f']
+      : ['avc1.4d0020', 'avc1.42e01e', 'avc1.64001f'];
 
+    let configuredCodec = candidateCodecs[0];
+    for (const codec of candidateCodecs) {
+      try {
+        if (typeof (VideoEncoder as any).isConfigSupported === 'function') {
+          const support = await (VideoEncoder as any).isConfigSupported({
+            codec,
+            width,
+            height,
+            bitrate: videoBitrate || (width <= 1280 ? 8_000_000 : 14_000_000),
+            framerate: fps,
+            hardwareAcceleration: 'prefer-hardware',
+          });
+          if (support.supported) {
+            configuredCodec = codec;
+            break;
+          }
+        }
+      } catch (e) {
+        // Continue to next candidate
+      }
+    }
+
+    const defaultBitrate = width <= 1280 ? 8_000_000 : 14_000_000;
     const isMac = typeof navigator !== 'undefined' && /Macintosh|Mac OS X|iPhone|iPad/i.test(navigator.userAgent || '');
 
-    // WebCodecs VideoEncoder: 'quality' on Apple Silicon VideoToolbox for max parallel throughput, 'realtime' on Windows to avoid MFT lookahead stall
+    // WebCodecs VideoEncoder: 'quality' on Apple Silicon VideoToolbox for max parallel throughput (7x-12x)
     videoEncoder.configure({
-      codec: avcCodec,
+      codec: configuredCodec,
       width,
       height,
       bitrate: videoBitrate || defaultBitrate,
@@ -148,15 +194,6 @@ self.onmessage = async (e: MessageEvent<RenderRequest | { type: 'CANCEL' }>) => 
         resolve();
       }
     };
-
-    // 3. Audio Encoding via @mediabunny/aac-encoder (Universally compatible with Safari/WebKit/Tauri & Chrome)
-    if (hasAudio && audioSource) {
-      await encodeAudioTrack(
-        audioSource,
-        e.data.audioRawData!,
-        sampleRate || 44100
-      );
-    }
 
     const fallbackFreq = new Uint8Array(128);
     const totalBgItems = bgItems.length;
@@ -226,7 +263,8 @@ self.onmessage = async (e: MessageEvent<RenderRequest | { type: 'CANCEL' }>) => 
           currentTime,
           rawBeatFactor,
           bgBitmaps,
-          videoFramesMap
+          videoFramesMap,
+          videoDurationsMap
         );
 
         // 4. Render Video Overlays
@@ -237,7 +275,8 @@ self.onmessage = async (e: MessageEvent<RenderRequest | { type: 'CANCEL' }>) => 
           project.overlays?.videos,
           currentTime,
           rawBeatFactor,
-          videoFramesMap
+          videoFramesMap,
+          videoDurationsMap
         );
 
         // 5. Render Image Overlays
@@ -289,11 +328,17 @@ self.onmessage = async (e: MessageEvent<RenderRequest | { type: 'CANCEL' }>) => 
           rawBeatFactor
         );
 
+        // 6b. Free Use Dynamic Random Watermark (Zero allocation, ultra-lightweight)
+        if (!isLicensed) {
+          drawDynamicWatermark(ctx, width, height, currentTime, watermarkBaseX, watermarkBaseY, watermarkSeed);
+        }
+
         // 7. Create VideoFrame from OffscreenCanvas
         const frame = new VideoFrame(canvas, {
           timestamp: timestampMicroseconds,
           duration: Math.round((1 / fps) * 1_000_000),
         });
+
 
         // 8. Platform-optimized GPU Queue Backpressure
         if (isMac) {
@@ -349,8 +394,35 @@ self.onmessage = async (e: MessageEvent<RenderRequest | { type: 'CANCEL' }>) => 
         }
       }
 
+      self.postMessage({
+        type: 'STAGE_CHANGE',
+        stage: 'encoding_audio',
+      });
+
       await videoEncoder.flush();
       videoEncoder.close();
+
+      // Encode Audio Track safely via @mediabunny/aac-encoder
+      if (hasAudio && audioSource && e.data.audioRawData) {
+        await encodeAudioTrack(
+          audioSource,
+          e.data.audioRawData,
+          sampleRate || 44100
+        );
+      }
+
+      if (encoderError) {
+        throw encoderError;
+      }
+
+      if (encodedVideoPacketsCount === 0) {
+        throw new Error('Video encoder tidak menghasilkan frame paket. Pastikan resolusi dan durasi audio valid.');
+      }
+
+      self.postMessage({
+        type: 'STAGE_CHANGE',
+        stage: 'finalizing',
+      });
 
       // Finalize Mediabunny Output
       await output.finalize();
@@ -444,7 +516,8 @@ async function encodeAudioTrack(
     const numChannels = channels.length;
     const totalAudioSamples = channels[0].length;
     console.log(`Encoding audio track: ${numChannels}ch, ${totalAudioSamples} samples, ${sampleRate}Hz, ${(totalAudioSamples / sampleRate).toFixed(1)}s`);
-    const chunkSize = 2048;
+    // 16384 samples (~370ms per buffer) drastically cuts async Promise & memory loop overhead from 10k loops to <1k loops
+    const chunkSize = 16384;
 
     let sampleOffset = 0;
     while (sampleOffset < totalAudioSamples) {
@@ -533,7 +606,8 @@ function drawBackground(
   currentTime: number,
   rawBeatFactor: number,
   bgBitmaps: Map<string, ImageBitmap>,
-  videoFramesMap: Record<string, ImageBitmap[]>
+  videoFramesMap: Record<string, ImageBitmap[]>,
+  videoDurationsMap: Record<string, number> = {}
 ): void {
   const totalBgItems = bgItems.length;
   if (totalBgItems === 0) return;
@@ -571,7 +645,8 @@ function drawBackground(
     1.0 - (blendFactor > 0 ? blendFactor * 0.5 : 0),
     currentTime,
     bgBitmaps,
-    videoFramesMap
+    videoFramesMap,
+    videoDurationsMap
   );
 
   // Crossfade next slide
@@ -586,7 +661,8 @@ function drawBackground(
       blendFactor,
       currentTime,
       bgBitmaps,
-      videoFramesMap
+      videoFramesMap,
+      videoDurationsMap
     );
   }
 
@@ -615,7 +691,8 @@ function drawSingleBgItem(
   alpha: number,
   currentTime: number,
   bgBitmaps: Map<string, ImageBitmap>,
-  videoFramesMap: Record<string, ImageBitmap[]>
+  videoFramesMap: Record<string, ImageBitmap[]>,
+  videoDurationsMap: Record<string, number> = {}
 ): void {
   let sourceCanvas: CanvasImageSource | null = null;
   let natW = width;
@@ -624,7 +701,9 @@ function drawSingleBgItem(
   if (item.type === 'video') {
     const frames = videoFramesMap[item.id];
     if (frames && frames.length > 0) {
-      const frameIdx = Math.floor(currentTime * 24) % frames.length;
+      const vidDur = videoDurationsMap[item.id] || 15;
+      const progressInVid = (currentTime % vidDur) / vidDur;
+      const frameIdx = Math.min(frames.length - 1, Math.floor(progressInVid * frames.length));
       sourceCanvas = frames[frameIdx];
       natW = (sourceCanvas as ImageBitmap).width;
       natH = (sourceCanvas as ImageBitmap).height;
@@ -676,7 +755,8 @@ function drawVideoOverlays(
   videos: VideoOverlayItem[] | undefined,
   currentTime: number,
   rawBeatFactor: number,
-  videoFramesMap: Record<string, ImageBitmap[]>
+  videoFramesMap: Record<string, ImageBitmap[]>,
+  videoDurationsMap: Record<string, number> = {}
 ): void {
   if (!videos || videos.length === 0) return;
 
@@ -694,7 +774,9 @@ function drawVideoOverlays(
     const frames = videoFramesMap[item.id];
     if (!frames || frames.length === 0) continue;
 
-    const frameIdx = Math.floor(currentTime * 24) % frames.length;
+    const vidDur = videoDurationsMap[item.id] || 15;
+    const progressInVid = (currentTime % vidDur) / vidDur;
+    const frameIdx = Math.min(frames.length - 1, Math.floor(progressInVid * frames.length));
     const bmp = frames[frameIdx];
     if (!bmp) continue;
 
@@ -811,4 +893,67 @@ function drawImageOverlays(
     }
   }
 }
+
+/**
+ * Free Use Dynamic Random Watermark
+ * Ultra-fast zero-allocation 2D canvas drawing.
+ * Randomizes position across render runs, with subtle periodic floating drift
+ * so it cannot be easily removed with automated video inpainting/cropping.
+ */
+function drawDynamicWatermark(
+  ctx: OffscreenCanvasRenderingContext2D,
+  width: number,
+  height: number,
+  currentTime: number,
+  baseX: number,
+  baseY: number,
+  seed: number
+) {
+  ctx.save();
+
+  // Subtle floating motion based on time and seed
+  const driftX = Math.sin(currentTime * 0.8 + seed) * (width * 0.04);
+  const driftY = Math.cos(currentTime * 0.6 + seed) * (height * 0.04);
+
+  const x = Math.max(120, Math.min(width - 120, baseX + driftX));
+  const y = Math.max(60, Math.min(height - 60, baseY + driftY));
+
+  const textPrimary = 'BERAS VISUALIZER';
+  const textSecondary = 'FREE USE EDITION • PROSES AIRMARK';
+
+  const badgeW = Math.max(260, width * 0.22);
+  const badgeH = Math.max(48, height * 0.06);
+
+  // Watermark semi-transparent background capsule
+  ctx.translate(x, y);
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.45)';
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.25)';
+  ctx.lineWidth = 1.5;
+
+  const halfW = badgeW / 2;
+  const halfH = badgeH / 2;
+  const radius = Math.min(10, halfH / 2);
+
+  ctx.beginPath();
+  ctx.roundRect(-halfW, -halfH, badgeW, badgeH, radius);
+  ctx.fill();
+  ctx.stroke();
+
+  // Watermark Text with high contrast
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+
+  // Primary title
+  ctx.font = `bold ${Math.round(badgeH * 0.36)}px sans-serif`;
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.85)';
+  ctx.fillText(textPrimary, 0, -badgeH * 0.14);
+
+  // Secondary subtext
+  ctx.font = `${Math.round(badgeH * 0.22)}px sans-serif`;
+  ctx.fillStyle = 'rgba(245, 158, 11, 0.90)'; // Amber warning tone
+  ctx.fillText(textSecondary, 0, badgeH * 0.22);
+
+  ctx.restore();
+}
+
 

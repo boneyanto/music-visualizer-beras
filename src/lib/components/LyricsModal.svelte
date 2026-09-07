@@ -32,6 +32,7 @@
   let singleSuccessMsg = $state<string | null>(null);
   let abortController: AbortController | null = null;
   let subtitleFileInput = $state<HTMLInputElement>();
+  let showClearConfirm = $state(false);
 
   let selectedLanguage = $state('id');
 
@@ -235,10 +236,27 @@
     handleSegmentTextChange(seg, seg.text);
   }
 
-  function manualDownloadSRT() {
+  async function manualDownloadSRT() {
     if (!projectStore.project.lyrics.segments || projectStore.project.lyrics.segments.length === 0) return;
     const trackFileName = projectStore.project.audio.fileName || 'track_subtitles';
-    SubtitleService.downloadSRT(projectStore.project.lyrics.segments, trackFileName, projectStore.project.audio.tracks);
+    try {
+      const savedPath = await SubtitleService.downloadSRT(projectStore.project.lyrics.segments, trackFileName, projectStore.project.audio.tracks);
+      singleSuccessMsg = savedPath ? `File .SRT tersimpan di: ${savedPath}` : 'File .SRT berhasil diunduh!';
+      setTimeout(() => {
+        singleSuccessMsg = null;
+      }, 5000);
+    } catch (err: any) {
+      singleError = 'Gagal mendownload SRT: ' + (err.message || err);
+    }
+  }
+
+  function handleClearLyrics() {
+    projectStore.clearLyrics();
+    showClearConfirm = false;
+    singleSuccessMsg = 'Semua segmen lirik berhasil dibersihkan.';
+    setTimeout(() => {
+      singleSuccessMsg = null;
+    }, 3000);
   }
 </script>
 
@@ -393,7 +411,7 @@
                     <button 
                       onclick={handleSingleTranscribe}
                       disabled={!projectStore.project.audio.tracks?.length && !projectStore.project.audio.url && !projectStore.audioBuffer}
-                      class="px-4 py-2 bg-gradient-to-r from-cyan-500 to-indigo-600 hover:from-cyan-400 hover:to-indigo-500 disabled:opacity-50 text-white font-semibold rounded-lg flex items-center gap-2 shadow-lg shadow-cyan-500/20 transition-all active:scale-95 cursor-pointer text-xs shrink-0"
+                      class="px-4 py-2 bg-gradient-to-r from-cyan-500 to-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white font-semibold rounded-lg flex items-center gap-2 shadow-lg shadow-cyan-500/20 transition-all active:scale-95 cursor-pointer text-xs shrink-0"
                     >
                       <Play class="w-3.5 h-3.5 fill-current" />
                       Auto Transcribe
@@ -450,17 +468,31 @@
                       <Download class="w-3 h-3" />
                       Download .SRT
                     </button>
-                    <button 
-                      onclick={() => {
-                        if (confirm('Hapus semua segmen lirik saat ini?')) {
-                          projectStore.clearLyrics();
-                        }
-                      }}
-                      class="text-[11px] text-rose-400 hover:text-rose-300 flex items-center gap-1 cursor-pointer bg-rose-950/40 hover:bg-rose-950 px-2 py-0.5 rounded border border-rose-800/40 transition-colors"
-                    >
-                      <Trash2 class="w-3 h-3" />
-                      Bersihkan Lirik
-                    </button>
+                    {#if showClearConfirm}
+                      <div class="flex items-center gap-1 bg-rose-950/80 border border-rose-700/80 px-2 py-0.5 rounded animate-in fade-in">
+                        <span class="text-[10px] text-rose-200">Yakin hapus?</span>
+                        <button 
+                          onclick={handleClearLyrics}
+                          class="text-[10px] bg-rose-600 hover:bg-rose-500 text-white font-bold px-1.5 py-0.2 rounded cursor-pointer"
+                        >
+                          Ya, Hapus
+                        </button>
+                        <button 
+                          onclick={() => { showClearConfirm = false; }}
+                          class="text-[10px] text-neutral-400 hover:text-white px-1 cursor-pointer"
+                        >
+                          Batal
+                        </button>
+                      </div>
+                    {:else}
+                      <button 
+                        onclick={() => { showClearConfirm = true; }}
+                        class="text-[11px] text-rose-400 hover:text-rose-300 flex items-center gap-1 cursor-pointer bg-rose-950/40 hover:bg-rose-950 px-2 py-0.5 rounded border border-rose-800/40 transition-colors"
+                      >
+                        <Trash2 class="w-3 h-3" />
+                        Bersihkan Lirik
+                      </button>
+                    {/if}
                   {/if}
                 </div>
               </div>

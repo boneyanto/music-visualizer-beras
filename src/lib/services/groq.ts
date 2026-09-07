@@ -41,6 +41,7 @@ export class GroqService {
       formData.append('response_format', 'verbose_json');
       formData.append('timestamp_granularities[]', 'word');
       formData.append('timestamp_granularities[]', 'segment');
+      formData.append('temperature', '0.0'); // Deterministic decoding to eliminate hallucinations on silent/music parts
       if (language && language !== 'auto') {
         formData.append('language', language);
       }
@@ -107,8 +108,8 @@ export class GroqService {
     if (!apiKey) throw new Error('Groq API Key diperlukan.');
 
     const totalDuration = audioBuffer.duration;
-    // Chunk size: 8 minutes (480s) ~ 15MB in 16kHz mono, perfectly safe and reliable
-    const maxChunkDuration = 480; 
+    // Chunk size: 3 minutes (180s) to guarantee Whisper never hits the 448-token generation ceiling on dense audio
+    const maxChunkDuration = 180; 
 
     if (totalDuration <= maxChunkDuration) {
       onProgress?.('Mengompres audio (16kHz Mono)...', 20);
@@ -212,17 +213,19 @@ export class GroqService {
           const end = currentChunk[currentChunk.length - 1].end + timeOffset;
           const text = currentChunk.map((item) => item.word.trim()).join(' ');
 
-          segments.push({
-            id: `seg-${Math.round(start * 100)}-${segIndex++}`,
-            text,
-            start,
-            end: Math.max(start + 0.5, end),
-            words: currentChunk.map((item) => ({
-              word: item.word.trim(),
-              start: item.start + timeOffset,
-              end: item.end + timeOffset,
-            })),
-          });
+          if (!GroqService.isHallucination(text)) {
+            segments.push({
+              id: `seg-${Math.round(start * 100)}-${segIndex++}`,
+              text,
+              start,
+              end: Math.max(start + 0.5, end),
+              words: currentChunk.map((item) => ({
+                word: item.word.trim(),
+                start: item.start + timeOffset,
+                end: item.end + timeOffset,
+              })),
+            });
+          }
 
           currentChunk = [];
         }
@@ -232,26 +235,72 @@ export class GroqService {
     }
 
     if (data.segments && data.segments.length > 0) {
-      return data.segments.map((seg, idx) => ({
-        id: `seg-${Math.round((seg.start + timeOffset) * 100)}-${idx}`,
-        text: seg.text.trim(),
-        start: seg.start + timeOffset,
-        end: seg.end + timeOffset,
-        words: seg.words?.map((w) => ({
-          word: w.word.trim(),
-          start: w.start + timeOffset,
-          end: w.end + timeOffset,
-        })),
-      }));
+      return data.segments
+        .filter((seg) => !GroqService.isHallucination(seg.text))
+        .map((seg, idx) => ({
+          id: `seg-${Math.round((seg.start + timeOffset) * 100)}-${idx}`,
+          text: seg.text.trim(),
+          start: seg.start + timeOffset,
+          end: seg.end + timeOffset,
+          words: seg.words?.map((w) => ({
+            word: w.word.trim(),
+            start: w.start + timeOffset,
+            end: w.end + timeOffset,
+          })),
+        }));
     }
 
-    return [
-      {
-        id: `seg-${Math.round(timeOffset * 100)}`,
-        text: data.text.trim(),
-        start: timeOffset,
-        end: timeOffset + (data.duration || 10),
-      },
+    if (data.text && !GroqService.isHallucination(data.text)) {
+      return [
+        {
+          id: `seg-${Math.round(timeOffset * 100)}`,
+          text: data.text.trim(),
+          start: timeOffset,
+          end: timeOffset + (data.duration || 10),
+        },
+      ];
+    }
+
+    return [];
+  }
+
+  /**
+   * Filters common Whisper hallucinations that occur during silent or instrumental sections.
+   */
+  private static isHallucination(text: string): boolean {
+    if (!text || !text.trim()) return true;
+    const clean = text.toLowerCase().replace(/[^a-z0-9\s]/g, '').trim();
+
+    const hallucinationPhrases = [
+      'terima kasih',
+      'terimakasih',
+      'terima kasih sudah menonton',
+      'terima kasih telah menonton',
+      'selamat menonton',
+      'selamat menyaksikan',
+      'sampai jumpa',
+      'sampai jumpa lagi',
+      'jangan lupa subscribe',
+      'like dan subscribe',
+      'like and subscribe',
+      'atau subscribe',
+      'dan subscribe',
+      'thank you for watching',
+      'thanks for watching',
+      'subscribe to my channel',
+      'please subscribe',
+      'bye bye',
+      'see you next time',
+      'subtitles by',
+      'transcribed by',
+      'translated by',
+      'gracias por ver',
+      'suscribete al canal',
+      'suscribete',
+      'suscríbete',
+      'obrigado por assistir',
     ];
+
+    return hallucinationPhrases.some((phrase) => clean === phrase || clean.startsWith(phrase + ' ') || clean.endsWith(' ' + phrase));
   }
 }

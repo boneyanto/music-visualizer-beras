@@ -12,19 +12,24 @@
     Sliders,
     FileJson,
     Loader2,
-    FilePlus
+    FilePlus,
+    ShieldCheck,
+    Lock
   } from '@lucide/svelte';
+  import { licenseManager } from '../services/license.svelte';
 
   interface Props {
     onExport?: () => void;
+    onOpenLicense?: () => void;
   }
 
-  let { onExport }: Props = $props();
+  let { onExport, onOpenLicense }: Props = $props();
   let projectFileInput: HTMLInputElement;
   let showSaveDropdown = $state(false);
   let showNewProjectModal = $state(false);
   let isProcessing = $state(false);
   let statusMessage = $state<string | null>(null);
+
 
   async function handleOpenProject(e: Event) {
     const target = e.target as HTMLInputElement;
@@ -99,8 +104,8 @@
 
 <header class="h-14 border-b border-neutral-800 bg-neutral-900/80 backdrop-blur-md px-4 flex items-center justify-between shrink-0 z-30 gap-2">
   <div class="flex items-center gap-3 shrink-0">
-    <div class="w-8 h-8 rounded-lg bg-gradient-to-tr from-cyan-500 to-fuchsia-500 flex items-center justify-center shadow-lg shadow-cyan-500/20">
-      <Sparkles class="w-4 h-4 text-white" />
+    <div class="w-8 h-8 rounded-lg overflow-hidden flex items-center justify-center shadow-lg shadow-cyan-500/20 border border-cyan-500/30 shrink-0">
+      <img src="/logo.svg" alt="BeatCanvas Logo" class="w-full h-full object-cover" />
     </div>
     <div class="flex flex-col max-w-[200px] lg:max-w-[280px]">
       <div class="flex items-center gap-1.5">
@@ -260,16 +265,37 @@
       {/if}
     </div>
 
+    <!-- License Status Badge -->
+    <button
+      type="button"
+      onclick={() => onOpenLicense?.()}
+      class={`px-2.5 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer border ${
+        licenseManager.isLicensed
+          ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/20'
+          : 'bg-amber-500/10 text-amber-400 border-amber-500/30 hover:bg-amber-500/20'
+      }`}
+      title={licenseManager.isLicensed ? 'Status: PRO Active (Permanen)' : 'Status: Free Edition (Klik untuk Aktivasi PRO)'}
+    >
+      {#if licenseManager.isLicensed}
+        <ShieldCheck class="w-3.5 h-3.5 text-emerald-400" />
+        <span class="tracking-wide text-[11px]">PRO</span>
+      {:else}
+        <Lock class="w-3.5 h-3.5 text-amber-400" />
+        <span class="tracking-wide text-[11px]">FREE</span>
+      {/if}
+    </button>
+
     <!-- Export Video Button -->
     <button 
       onclick={() => onExport?.()}
-      class="px-3.5 py-1.5 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white text-xs font-semibold rounded-lg flex items-center gap-1.5 shadow-md shadow-cyan-500/20 transition-all active:scale-95 cursor-pointer ml-1"
+      class="px-3.5 py-1.5 bg-gradient-to-r from-cyan-500 to-blue-600 bg-cyan-500 hover:bg-cyan-400 text-white text-xs font-semibold rounded-lg flex items-center gap-1.5 shadow-md shadow-cyan-500/20 transition-all active:scale-95 cursor-pointer ml-1"
     >
       <Download class="w-3.5 h-3.5" />
       Export Video
     </button>
   </div>
 </header>
+
 
 <!-- New Project Confirmation Modal -->
 {#if showNewProjectModal}

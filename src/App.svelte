@@ -9,12 +9,14 @@
   import PlaylistModal from './lib/components/PlaylistModal.svelte';
   import TracklistGenerator from './lib/components/TracklistGenerator.svelte';
   import LeftNavigation from './lib/components/LeftNavigation.svelte';
+  import LicenseModal from './lib/components/LicenseModal.svelte';
 
   import { onMount, onDestroy } from 'svelte';
 
   let exportModalRef: ReturnType<typeof ExportModal>;
   let lyricsModalRef: ReturnType<typeof LyricsModal>;
   let playlistModalRef: ReturnType<typeof PlaylistModal>;
+  let licenseModalRef: ReturnType<typeof LicenseModal>;
 
   export function openExport() {
     exportModalRef?.open();
@@ -26,6 +28,10 @@
 
   export function openPlaylist() {
     playlistModalRef?.open();
+  }
+
+  export function openLicense() {
+    licenseModalRef?.open();
   }
 
   onMount(() => {
@@ -82,7 +88,7 @@
 </script>
 
 <div class="flex flex-col w-full h-full bg-neutral-950 text-neutral-100 overflow-hidden font-sans">
-  <Header onExport={openExport} />
+  <Header onExport={openExport} onOpenLicense={openLicense} />
   
   <div class="flex-1 flex overflow-hidden min-h-0">
     <LeftNavigation />
@@ -100,10 +106,12 @@
   {#if projectStore.activeTab !== 'tracklist-png'}
     <Timeline onOpenPlaylist={openPlaylist} />
   {/if}
-  <ExportModal bind:this={exportModalRef} />
+  <ExportModal bind:this={exportModalRef} onOpenLicense={openLicense} />
   <LyricsModal bind:this={lyricsModalRef} />
   <PlaylistModal bind:this={playlistModalRef} />
+  <LicenseModal bind:this={licenseModalRef} />
 </div>
+
 
 
 

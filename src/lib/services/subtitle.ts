@@ -1,4 +1,5 @@
 import type { LyricSegment, AudioTrackItem } from '../types/project';
+import { isDesktop } from '../utils/platform';
 
 export class SubtitleService {
   /**
@@ -188,11 +189,11 @@ export class SubtitleService {
   }
 
   /**
-   * Triggers client-side automatic download of the .srt file with track titles info.
+   * Triggers client-side or native desktop download of the .srt file with track titles info.
    */
-  static downloadSRT(segments: LyricSegment[], filename: string, tracks?: AudioTrackItem[]) {
+  static async downloadSRT(segments: LyricSegment[], filename: string, tracks?: AudioTrackItem[]): Promise<string | null> {
     const srtContent = this.segmentsToSRT(segments, tracks);
-    if (!srtContent) return;
+    if (!srtContent) return null;
 
     let baseName = filename.replace(/\.[^/.]+$/, '').replace(/[^a-zA-Z0-9_\- ]/g, '_').trim() || 'subtitles';
     
@@ -204,6 +205,22 @@ export class SubtitleService {
 
     const finalFilename = `${baseName}.srt`;
 
+    // Native Desktop App Save (Tauri)
+    if (isDesktop()) {
+      try {
+        const { invoke } = await import('@tauri-apps/api/core');
+        const savedPath = await invoke<string>('save_text_file', {
+          filename: finalFilename,
+          content: srtContent,
+        });
+        console.log('SRT file saved natively on desktop:', savedPath);
+        return savedPath;
+      } catch (err) {
+        console.warn('Native desktop save_text_file failed, falling back to browser download:', err);
+      }
+    }
+
+    // Standard Browser Fallback
     const blob = new Blob([srtContent], { type: 'text/plain;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -213,5 +230,6 @@ export class SubtitleService {
     a.click();
     document.body.removeChild(a);
     setTimeout(() => URL.revokeObjectURL(url), 4000);
+    return null;
   }
 }

@@ -3,6 +3,8 @@ use std::io::Write;
 use tauri::Manager;
 use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
 
+mod license;
+
 #[tauri::command]
 fn save_video_chunk(app: tauri::AppHandle, filename: String, base64_chunk: String, is_first: bool, is_last: bool) -> Result<String, String> {
   let download_dir = app.path().download_dir().map_err(|e| e.to_string())?;
@@ -32,14 +34,79 @@ fn save_video_chunk(app: tauri::AppHandle, filename: String, base64_chunk: Strin
   Ok(file_path.to_string_lossy().to_string())
 }
 
+#[tauri::command]
+fn save_text_file(app: tauri::AppHandle, filename: String, content: String) -> Result<String, String> {
+  let download_dir = app.path().download_dir().map_err(|e| e.to_string())?;
+  let file_path = download_dir.join(&filename);
+
+  let mut file = OpenOptions::new()
+    .create(true)
+    .write(true)
+    .truncate(true)
+    .open(&file_path)
+    .map_err(|e| e.to_string())?;
+
+  file.write_all(content.as_bytes()).map_err(|e| e.to_string())?;
+
+  #[cfg(target_os = "macos")]
+  {
+    let _ = std::process::Command::new("open").arg("-R").arg(&file_path).spawn();
+  }
+
+  #[cfg(target_os = "windows")]
+  {
+    let _ = std::process::Command::new("explorer").arg(format!("/select,\"{}\"", file_path.to_string_lossy())).spawn();
+  }
+
+  Ok(file_path.to_string_lossy().to_string())
+}
+
+#[tauri::command]
+fn open_external_url(url: String) -> Result<(), String> {
+  // First try the cross-platform `open` crate
+  if open::that(&url).is_ok() {
+    return Ok(());
+  }
+
+  // Fallback to direct OS CLI commands
+  #[cfg(target_os = "macos")]
+  {
+    let _ = std::process::Command::new("open").arg(&url).spawn().map_err(|e| e.to_string())?;
+  }
+
+  #[cfg(target_os = "windows")]
+  {
+    let _ = std::process::Command::new("cmd").args(["/c", "start", &url]).spawn().map_err(|e| e.to_string())?;
+  }
+
+  #[cfg(target_os = "linux")]
+  {
+    let _ = std::process::Command::new("xdg-open").arg(&url).spawn().map_err(|e| e.to_string())?;
+  }
+
+  Ok(())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+  #[cfg(not(debug_assertions))]
+  license::apply_anti_debugging();
+
   tauri::Builder::default()
     .plugin(tauri_plugin_log::Builder::default().build())
-    .invoke_handler(tauri::generate_handler![save_video_chunk])
+    .plugin(tauri_plugin_opener::init())
+    .invoke_handler(tauri::generate_handler![
+      save_video_chunk,
+      save_text_file,
+      open_external_url,
+      license::get_license_info,
+      license::activate_license
+    ])
+
     .setup(|_app| {
       Ok(())
     })
     .run(tauri::generate_context!())
     .expect("error while running tauri application");
 }
+

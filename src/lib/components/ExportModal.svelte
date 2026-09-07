@@ -15,12 +15,22 @@
     Hourglass,
     Zap,
     Maximize2,
-    Clock
+    Clock,
+    ShieldAlert,
+    Lock
   } from '@lucide/svelte';
+  import { licenseManager } from '../services/license.svelte';
+
+  interface Props {
+    onOpenLicense?: () => void;
+  }
+
+  let { onOpenLicense }: Props = $props();
 
   let exportedBlob = $state<Blob | null>(null);
   let savedFilePath = $state<string | null>(null);
   let showModal = $state(false);
+
 
   export function open() {
     showModal = true;
@@ -82,7 +92,7 @@
   }
 
   function formatETA(seconds: number): string {
-    if (seconds <= 0) return 'Menyelesaikan...';
+    if (seconds <= 0) return 'Loading...';
     return formatDuration(seconds);
   }
 </script>
@@ -103,7 +113,7 @@
             <Film class="w-5 h-5 text-white" />
           </div>
           <div>
-            <h2 class="text-sm font-semibold text-neutral-100">Export Video (WebCodecs MP4)</h2>
+            <h2 class="text-sm font-semibold text-neutral-100">Export Video</h2>
             <p class="text-[11px] text-neutral-400">High performance client-side offline GPU encoding</p>
           </div>
         </div>
@@ -119,8 +129,29 @@
       <!-- Content -->
       <div class="p-6 space-y-5">
         
+        <!-- Free Watermark Warning Notice -->
+        {#if !licenseManager.isLicensed}
+          <div class="p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl flex items-center justify-between text-xs text-amber-300">
+            <div class="flex items-center gap-2.5">
+              <ShieldAlert class="w-4 h-4 text-amber-400 shrink-0" />
+              <div>
+                <span class="font-semibold text-amber-200">Mode Free Use Aktif:</span>
+                <span class="text-neutral-300 ml-1">Video akan memiliki watermark acak.</span>
+              </div>
+            </div>
+            <button
+              type="button"
+              onclick={() => onOpenLicense?.()}
+              class="px-2.5 py-1 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 font-semibold rounded-lg text-[11px] transition-colors cursor-pointer border border-amber-500/30 shrink-0"
+            >
+              Hapus Watermark (PRO)
+            </button>
+          </div>
+        {/if}
+
         <!-- Video Specs & Direct Resolution Quick Selector -->
         {#if !videoExporter.isExporting && !exportedBlob}
+
           <div class="space-y-3 p-3.5 bg-neutral-950 rounded-xl border border-neutral-800 text-xs">
             <div class="flex items-center justify-between">
               <span class="text-neutral-300 font-semibold flex items-center gap-1.5">
@@ -210,7 +241,15 @@
             <div class="flex items-center justify-between text-xs">
               <span class="text-neutral-200 font-semibold flex items-center gap-2">
                 <Loader2 class="w-4 h-4 text-cyan-400 animate-spin" />
-                Encoding Video Frames...
+                {#if videoExporter.stage === 'preparing'}
+                  Menyiapkan Media & Audio...
+                {:else if videoExporter.stage === 'encoding_audio'}
+                  Mengompres Audio Track (AAC)...
+                {:else if videoExporter.stage === 'finalizing'}
+                  Menyusun & Menyimpan File MP4...
+                {:else}
+                  Encoding Video Frames...
+                {/if}
               </span>
               <span class="font-mono text-cyan-400 font-bold text-sm">{Math.round(videoExporter.progress * 100)}%</span>
             </div>
@@ -294,7 +333,7 @@
           <div class="flex items-start gap-3 p-3 bg-cyan-950/20 border border-cyan-800/30 rounded-xl text-xs text-cyan-200">
             <Cpu class="w-4 h-4 text-cyan-400 shrink-0 mt-0.5" />
             <div class="text-[11px] leading-relaxed">
-              Rendering berjalan di Web Worker dengan <strong>Mediabunny + WebCodecs GPU</strong>, proteksi <strong>Backpressure RAM</strong> instan, dan <strong>Auto-Download</strong> begitu encoding selesai.
+              Rendering berjalan dan <strong>Auto-Download</strong> begitu encoding selesai.
             </div>
           </div>
         {/if}
@@ -322,7 +361,7 @@
           <button 
             type="button"
             onclick={handleDownload}
-            class="px-5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-white text-xs font-semibold flex items-center gap-2 shadow-lg shadow-emerald-500/20 transition-all active:scale-95 cursor-pointer"
+            class="px-5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 bg-emerald-500 hover:bg-emerald-400 text-white text-xs font-semibold flex items-center gap-2 shadow-lg shadow-emerald-500/20 transition-all active:scale-95 cursor-pointer"
           >
             <Download class="w-4 h-4" />
             Download Lagi
@@ -331,7 +370,7 @@
           <button 
             type="button"
             onclick={handleStartExport}
-            class="px-5 py-2.5 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white text-xs font-semibold flex items-center gap-2 shadow-lg shadow-cyan-500/20 transition-all active:scale-95 cursor-pointer"
+            class="px-5 py-2.5 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 bg-cyan-500 hover:bg-cyan-400 text-white text-xs font-semibold flex items-center gap-2 shadow-lg shadow-cyan-500/20 transition-all active:scale-95 cursor-pointer"
           >
             <Sparkles class="w-4 h-4" />
             Mulai Render MP4
