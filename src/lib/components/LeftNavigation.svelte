@@ -1,30 +1,24 @@
 <script lang="ts">
   import { projectStore } from '../stores/project.svelte';
-  import {
-    Layers,
-    Music2,
-    Sparkles,
-    UploadCloud,
-    Type,
-    FileText,
-    ListMusic,
-    Download
-  } from '@lucide/svelte';
+  import { featureRegistry } from '../../app/registry/featureRegistry';
+  import { Download } from '@lucide/svelte';
 
-  const navItems = [
-    { id: 'background', label: 'Backdrop', icon: Layers },
-    { id: 'spectrum', label: 'Spectrum', icon: Music2 },
-    { id: 'particles', label: 'Particles', icon: Sparkles },
-    { id: 'images', label: 'Overlays', icon: UploadCloud },
-    { id: 'texts', label: 'Texts', icon: Type },
-    { id: 'lyrics', label: 'Lyrics', icon: FileText },
-    { id: 'tracklist-overlay', label: 'Tracklist', icon: ListMusic },
-    { id: 'tracklist-png', label: 'PNG Export', icon: Download },
-  ] as const;
+  const items = [
+    ...featureRegistry.map((f) => ({
+      id: f.id,
+      label: f.label,
+      icon: f.icon,
+    })),
+    {
+      id: 'tracklist-png',
+      label: 'PNG Export',
+      icon: Download,
+    },
+  ];
 </script>
 
 <aside class="w-[72px] shrink-0 bg-neutral-950/90 border-r border-neutral-800/80 flex flex-col items-center py-3 gap-1 z-20 select-none backdrop-blur-md overflow-y-auto no-scrollbar">
-  {#each navItems as item}
+  {#each items as item}
     {@const Icon = item.icon}
     {@const isActive = projectStore.activeTab === item.id}
     <button

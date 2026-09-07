@@ -8,11 +8,11 @@ import {
   AudioSampleSource,
 } from 'mediabunny';
 import { registerAacEncoder } from '@mediabunny/aac-encoder';
-import { ParticleSystem } from '../engine/particles';
-import { SpectrumRenderer } from '../engine/spectrum';
-import { LyricRenderer } from '../engine/lyrics';
-import { textOverlayManager } from '../engine/textOverlay.svelte';
-import { tracklistOverlayRenderer } from '../engine/tracklistOverlay.svelte';
+import { ParticleSystem } from '../../features/particles/particles';
+import { SpectrumRenderer } from '../../features/spectrum/spectrum';
+import { LyricRenderer } from '../../features/lyrics/lyrics';
+import { textOverlayManager } from '../../features/texts/textOverlay.svelte';
+import { tracklistOverlayRenderer } from '../../features/tracklist/tracklistOverlay.svelte';
 import { computeOverlayTransition } from '../utils/transition';
 import type { ProjectConfig, ImageOverlayItem, VideoOverlayItem } from '../types/project';
 
@@ -187,7 +187,7 @@ self.onmessage = async (e: MessageEvent<RenderRequest | { type: 'CANCEL' }>) => 
     // Setup zero-latency ondequeue backpressure (pure microsecond resolution on Mac, buffered on Windows)
     let queueDrainResolver: (() => void) | null = null;
     videoEncoder.ondequeue = () => {
-      const threshold = isMac ? 10 : 16;
+      const threshold = isMac ? 6 : 3;
       if (queueDrainResolver && videoEncoder.encodeQueueSize <= threshold) {
         const resolve = queueDrainResolver;
         queueDrainResolver = null;
@@ -341,26 +341,13 @@ self.onmessage = async (e: MessageEvent<RenderRequest | { type: 'CANCEL' }>) => 
 
 
         // 8. Platform-optimized GPU Queue Backpressure
-        if (isMac) {
-          // macOS Apple Silicon VideoToolbox: zero-latency microsecond resolution (600+ FPS)
-          if (videoEncoder.encodeQueueSize > 20) {
-            await new Promise<void>((resolve) => {
-              queueDrainResolver = resolve;
-            });
-          }
-        } else {
-          // Windows Intel Arc / QuickSync / NVIDIA / AMD: buffered queue with safety fallback
-          if (videoEncoder.encodeQueueSize > 28) {
-            await new Promise<void>((resolve) => {
-              queueDrainResolver = resolve;
-              setTimeout(() => {
-                if (queueDrainResolver === resolve) {
-                  queueDrainResolver = null;
-                  resolve();
-                }
-              }, 10);
-            });
-          }
+        // Windows iGPU (Intel Iris/UHD, AMD Radeon) and dGPU (NVIDIA/AMD) shared memory safety:
+        // Hard clamp at 8 frames to prevent Media Foundation / D3D11 buffer explosion
+        const maxQueue = isMac ? 16 : 8;
+        if (videoEncoder.encodeQueueSize >= maxQueue) {
+          await new Promise<void>((resolve) => {
+            queueDrainResolver = resolve;
+          });
         }
 
         videoEncoder.encode(frame, { keyFrame: isKeyFrame });
@@ -559,8 +546,11 @@ function renderWorkerChromaKey(
   const h = Math.round(drawH);
   if (w <= 0 || h <= 0) return;
 
-  if (!workerChromaCanvas || workerChromaCanvas.width !== w || workerChromaCanvas.height !== h) {
-    workerChromaCanvas = new OffscreenCanvas(w, h);
+  // Allocate canvas with headroom to prevent continuous GC churn when scaling
+  if (!workerChromaCanvas || workerChromaCanvas.width < w || workerChromaCanvas.height < h) {
+    const targetW = Math.max(w, workerChromaCanvas ? workerChromaCanvas.width : 512);
+    const targetH = Math.max(h, workerChromaCanvas ? workerChromaCanvas.height : 512);
+    workerChromaCanvas = new OffscreenCanvas(targetW, targetH);
     workerChromaCtx = workerChromaCanvas.getContext('2d', { willReadFrequently: true }) as any;
   }
   if (!workerChromaCtx) return;

@@ -16,7 +16,7 @@
     ShieldCheck,
     Lock
   } from '@lucide/svelte';
-  import { licenseManager } from '../services/license.svelte';
+  import { licenseManager } from '../../features/licensing';
 
   interface Props {
     onExport?: () => void;

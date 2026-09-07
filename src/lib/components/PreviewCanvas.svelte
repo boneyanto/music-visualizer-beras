@@ -2,15 +2,14 @@
   import { onMount, onDestroy } from 'svelte';
   import { projectStore } from '../stores/project.svelte';
   import { audioEngine } from '../audio/player';
-  import { backgroundManager } from '../engine/background.svelte';
-  import { imageOverlayManager } from '../engine/imageOverlay.svelte';
-  import { videoOverlayManager } from '../engine/videoOverlay.svelte';
-  import { textOverlayManager } from '../engine/textOverlay.svelte';
-  import { tracklistOverlayRenderer } from '../engine/tracklistOverlay.svelte';
-  import { ParticleSystem } from '../engine/particles';
-  import { SpectrumRenderer } from '../engine/spectrum';
-  import { LyricRenderer } from '../engine/lyrics';
-  import { videoExporter } from '../engine/exporter.svelte';
+  import { backgroundManager } from '../../features/backdrop';
+  import { imageOverlayManager, videoOverlayManager } from '../../features/overlays';
+  import { textOverlayManager } from '../../features/texts';
+  import { tracklistOverlayRenderer } from '../../features/tracklist';
+  import { ParticleSystem } from '../../features/particles';
+  import { SpectrumRenderer } from '../../features/spectrum';
+  import { LyricRenderer } from '../../features/lyrics';
+  import { videoExporter } from '../../features/export';
   import { Play, Pause, RotateCcw } from '@lucide/svelte';
 
   let canvasRef: HTMLCanvasElement;

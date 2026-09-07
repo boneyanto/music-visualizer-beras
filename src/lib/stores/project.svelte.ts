@@ -1,10 +1,9 @@
 import type { ProjectConfig, AudioTrackItem, TextOverlayItem } from '../types/project';
 import { db } from '../db/database';
 import { AudioAnalyzer } from '../audio/analyzer';
-import { backgroundManager } from '../engine/background.svelte';
-import { imageOverlayManager } from '../engine/imageOverlay.svelte';
-import { videoOverlayManager } from '../engine/videoOverlay.svelte';
-import { fontManager } from '../services/fontManager';
+import { backgroundManager } from '../../features/backdrop';
+import { imageOverlayManager, videoOverlayManager } from '../../features/overlays';
+import { fontManager } from '../../features/texts';
 import { zipSync, unzipSync, strToU8, strFromU8 } from 'fflate';
 import { isDesktop } from '../utils/platform';
 

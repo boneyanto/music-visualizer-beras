@@ -4,12 +4,12 @@
   import PreviewCanvas from './lib/components/PreviewCanvas.svelte';
   import Sidebar from './lib/components/Sidebar.svelte';
   import Timeline from './lib/components/Timeline.svelte';
-  import ExportModal from './lib/components/ExportModal.svelte';
-  import LyricsModal from './lib/components/LyricsModal.svelte';
-  import PlaylistModal from './lib/components/PlaylistModal.svelte';
-  import TracklistGenerator from './lib/components/TracklistGenerator.svelte';
   import LeftNavigation from './lib/components/LeftNavigation.svelte';
-  import LicenseModal from './lib/components/LicenseModal.svelte';
+  import { ExportModal } from './features/export';
+  import { LyricsModal } from './features/lyrics';
+  import { PlaylistModal } from './features/playlist';
+  import { TracklistGenerator } from './features/tracklist';
+  import { LicenseModal } from './features/licensing';
 
   import { onMount, onDestroy } from 'svelte';
 

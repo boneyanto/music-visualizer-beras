@@ -6,7 +6,14 @@ use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
 mod license;
 
 #[tauri::command]
-fn save_video_chunk(app: tauri::AppHandle, filename: String, base64_chunk: String, is_first: bool, is_last: bool) -> Result<String, String> {
+fn save_video_chunk(
+  app: tauri::AppHandle, 
+  filename: String, 
+  base64_chunk: Option<String>, 
+  bytes_chunk: Option<Vec<u8>>, 
+  is_first: bool, 
+  is_last: bool
+) -> Result<String, String> {
   let download_dir = app.path().download_dir().map_err(|e| e.to_string())?;
   let file_path = download_dir.join(&filename);
 
@@ -16,7 +23,14 @@ fn save_video_chunk(app: tauri::AppHandle, filename: String, base64_chunk: Strin
     OpenOptions::new().create(true).append(true).open(&file_path)
   }.map_err(|e| e.to_string())?;
 
-  let bytes = BASE64.decode(base64_chunk.as_bytes()).map_err(|e| e.to_string())?;
+  let bytes = if let Some(b) = bytes_chunk {
+    b
+  } else if let Some(b64) = base64_chunk {
+    BASE64.decode(b64.as_bytes()).map_err(|e| e.to_string())?
+  } else {
+    return Err("No video chunk data provided".to_string());
+  };
+
   file.write_all(&bytes).map_err(|e| e.to_string())?;
 
   if is_last {
