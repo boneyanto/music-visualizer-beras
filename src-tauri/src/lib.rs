@@ -103,6 +103,15 @@ fn open_external_url(url: String) -> Result<(), String> {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+  #[cfg(target_os = "windows")]
+  {
+    // Force enable GPU rasterization, hardware video encoding, and bypass driver blocklist on Windows WebView2
+    std::env::set_var(
+      "WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS",
+      "--ignore-gpu-blocklist --enable-gpu-rasterization --enable-zero-copy"
+    );
+  }
+
   #[cfg(not(debug_assertions))]
   license::apply_anti_debugging();
 
