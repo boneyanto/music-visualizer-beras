@@ -101,6 +101,33 @@ fn open_external_url(url: String) -> Result<(), String> {
   Ok(())
 }
 
+#[cfg(target_os = "windows")]
+fn find_chrome_executable() -> Option<std::path::PathBuf> {
+  let candidates = [
+    // Standard 64-bit Chrome
+    r"C:\Program Files\Google\Chrome\Application\chrome.exe",
+    // 32-bit Chrome on 64-bit Windows
+    r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe",
+  ];
+
+  for path_str in candidates {
+    let p = std::path::PathBuf::from(path_str);
+    if p.exists() {
+      return Some(p);
+    }
+  }
+
+  // Check Local AppData (per-user Chrome installation)
+  if let Ok(local_app_data) = std::env::var("LOCALAPPDATA") {
+    let per_user = std::path::PathBuf::from(local_app_data).join(r"Google\Chrome\Application\chrome.exe");
+    if per_user.exists() {
+      return Some(per_user);
+    }
+  }
+
+  None
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
   #[cfg(target_os = "windows")]
@@ -125,8 +152,55 @@ pub fn run() {
       license::get_license_info,
       license::activate_license
     ])
+    .setup(|#[allow(unused_variables)] app| {
+      #[cfg(target_os = "windows")]
+      {
+        if let Some(chrome_path) = find_chrome_executable() {
+          if let Some(main_window) = app.get_webview_window("main") {
+            if let Ok(url) = main_window.url() {
+              let url_str = url.to_string();
+              let app_handle = app.handle().clone();
 
-    .setup(|_app| {
+              // Hide the restricted WebView2 window immediately
+              let _ = main_window.hide();
+
+              // Setup dedicated profile directory in %LOCALAPPDATA%\BerasVisualizer\ChromeProfile
+              let profile_dir = std::env::var("LOCALAPPDATA")
+                .map(|p| format!(r"{}\BerasVisualizer\ChromeProfile", p))
+                .unwrap_or_else(|_| r"C:\Temp\BerasVisualizerProfile".to_string());
+
+              // Launch Google Chrome in dedicated native app mode (--app)
+              std::thread::spawn(move || {
+                let status = std::process::Command::new(chrome_path)
+                  .args([
+                    &format!("--app={}", url_str),
+                    &format!("--user-data-dir={}", profile_dir),
+                    "--window-size=1400,880",
+                    "--ignore-gpu-blocklist",
+                    "--enable-gpu-rasterization",
+                    "--enable-zero-copy",
+                  ])
+                  .status();
+
+                // When user closes the Chrome app window, terminate Tauri process cleanly
+                match status {
+                  Ok(_) => {
+                    app_handle.exit(0);
+                  }
+                  Err(_) => {
+                    // If Chrome failed to launch, restore the WebView2 window as fallback
+                    if let Some(w) = app_handle.get_webview_window("main") {
+                      let _ = w.show();
+                      let _ = w.set_focus();
+                    }
+                  }
+                }
+              });
+            }
+          }
+        }
+      }
+
       Ok(())
     })
     .run(tauri::generate_context!())
