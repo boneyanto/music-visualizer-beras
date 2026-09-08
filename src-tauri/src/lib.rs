@@ -171,28 +171,45 @@ pub fn run() {
 
               // Launch Google Chrome in dedicated native app mode (--app)
               std::thread::spawn(move || {
-                let status = std::process::Command::new(chrome_path)
+                let start_time = std::time::Instant::now();
+                let mut child = match std::process::Command::new(chrome_path)
                   .args([
                     &format!("--app={}", url_str),
                     &format!("--user-data-dir={}", profile_dir),
+                    "--no-first-run",
+                    "--no-default-browser-check",
                     "--window-size=1400,880",
                     "--ignore-gpu-blocklist",
                     "--enable-gpu-rasterization",
+                    "--enable-accelerated-video-encode",
+                    "--enable-accelerated-video-decode",
+                    "--use-angle=d3d11",
+                    "--force_high_performance_gpu",
                     "--enable-zero-copy",
                   ])
-                  .status();
-
-                // When user closes the Chrome app window, terminate Tauri process cleanly
-                match status {
-                  Ok(_) => {
-                    app_handle.exit(0);
-                  }
-                  Err(_) => {
-                    // If Chrome failed to launch, restore the WebView2 window as fallback
-                    if let Some(w) = app_handle.get_webview_window("main") {
-                      let _ = w.show();
-                      let _ = w.set_focus();
+                  .spawn() {
+                    Ok(c) => c,
+                    Err(_) => {
+                      if let Some(w) = app_handle.get_webview_window("main") {
+                        let _ = w.show();
+                        let _ = w.set_focus();
+                      }
+                      return;
                     }
+                  };
+
+                // Wait for the spawned Chrome process
+                let status = child.wait();
+                let elapsed = start_time.elapsed();
+
+                // If Chrome detached immediately (< 3 seconds) because an existing Chrome instance absorbed it,
+                // DO NOT exit Tauri! Keep Tauri alive serving in the background.
+                if elapsed.as_secs() >= 3 {
+                  app_handle.exit(0);
+                } else if status.is_err() {
+                  if let Some(w) = app_handle.get_webview_window("main") {
+                    let _ = w.show();
+                    let _ = w.set_focus();
                   }
                 }
               });
