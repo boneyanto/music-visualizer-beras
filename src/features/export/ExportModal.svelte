@@ -216,6 +216,37 @@
                 </button>
               </div>
             </div>
+
+            <!-- Frame Rate Quick Selector -->
+            <div class="flex items-center justify-between pt-2 border-t border-neutral-900 text-[11px]">
+              <span class="text-neutral-500 flex items-center gap-1">
+                <Film class="w-3 h-3 text-cyan-400" />
+                Frame Rate:
+              </span>
+              <div class="flex gap-1.5">
+                <button 
+                  type="button"
+                  onclick={() => { projectStore.project.exportSettings.fps = 24; projectStore.saveToDB(); }}
+                  class={`px-2.5 py-0.5 rounded text-[10px] font-semibold border cursor-pointer ${projectStore.project.exportSettings.fps === 24 ? 'border-cyan-500 bg-cyan-500/20 text-cyan-300' : 'border-neutral-800 text-neutral-400 hover:border-neutral-700'}`}
+                >
+                  24 FPS 🎬 (Tercepat)
+                </button>
+                <button 
+                  type="button"
+                  onclick={() => { projectStore.project.exportSettings.fps = 30; projectStore.saveToDB(); }}
+                  class={`px-2.5 py-0.5 rounded text-[10px] font-semibold border cursor-pointer ${projectStore.project.exportSettings.fps === 30 ? 'border-cyan-500 bg-cyan-500/20 text-cyan-300' : 'border-neutral-800 text-neutral-400 hover:border-neutral-700'}`}
+                >
+                  30 FPS (Standar)
+                </button>
+                <button 
+                  type="button"
+                  onclick={() => { projectStore.project.exportSettings.fps = 60; projectStore.saveToDB(); }}
+                  class={`px-2.5 py-0.5 rounded text-[10px] font-semibold border cursor-pointer ${projectStore.project.exportSettings.fps === 60 ? 'border-cyan-500 bg-cyan-500/20 text-cyan-300' : 'border-neutral-800 text-neutral-400 hover:border-neutral-700'}`}
+                >
+                  60 FPS (Smooth)
+                </button>
+              </div>
+            </div>
           </div>
         {:else}
           <!-- Video Specs Card During Render -->

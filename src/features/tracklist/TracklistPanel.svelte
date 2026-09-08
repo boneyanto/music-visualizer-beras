@@ -224,9 +224,41 @@
       </div>
 
       <div class="flex items-center justify-between">
-        <span class="text-neutral-300">Drop Shadow / Glow</span>
+        <span class="text-neutral-300">Drop Shadow</span>
         <input type="checkbox" bind:checked={tl.shadow} onchange={() => projectStore.saveToDB()} class="accent-cyan-500 w-3.5 h-3.5 cursor-pointer" />
       </div>
+
+      <div class="flex items-center justify-between">
+        <span class="text-neutral-300">Text Outline / Stroke</span>
+        <input type="checkbox" bind:checked={tl.stroke} onchange={() => projectStore.saveToDB()} class="accent-cyan-500 w-3.5 h-3.5 cursor-pointer" />
+      </div>
+
+      {#if tl.stroke}
+        <div class="pl-2 pt-1 border-l-2 border-cyan-500/30 space-y-2">
+          <div class="flex items-center justify-between">
+            <span class="text-neutral-400 text-[10px]">Outline Color</span>
+            <div class="flex items-center gap-1 bg-neutral-900 px-1.5 py-0.5 rounded border border-neutral-800">
+              <input type="color" bind:value={tl.strokeColor} onchange={() => projectStore.saveToDB()} class="w-4 h-4 bg-transparent border-0 cursor-pointer" />
+              <span class="font-mono text-[9px] text-neutral-300">{tl.strokeColor || '#000000'}</span>
+            </div>
+          </div>
+          <div>
+            <div class="flex justify-between text-neutral-400 text-[10px] mb-1">
+              <span>Outline Width</span>
+              <span>{tl.strokeWidth ?? 3}px</span>
+            </div>
+            <input 
+              type="range" 
+              min="1" 
+              max="10" 
+              step="1" 
+              bind:value={tl.strokeWidth}
+              onchange={() => projectStore.saveToDB()}
+              class="w-full accent-cyan-500 cursor-pointer"
+            />
+          </div>
+        </div>
+      {/if}
 
       <div class="flex items-center justify-between">
         <span class="text-neutral-300">Follow Audio Beat</span>

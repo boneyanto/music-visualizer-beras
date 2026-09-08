@@ -20,15 +20,21 @@
 
   <div>
     <span class="block text-neutral-400 mb-1.5 font-medium">Frame Rate</span>
-    <div class="grid grid-cols-2 gap-2">
+    <div class="grid grid-cols-3 gap-2">
       <button 
-        class={`py-2 rounded-lg border font-semibold cursor-pointer ${projectStore.project.exportSettings.fps === 30 ? 'border-cyan-500 bg-cyan-500/10 text-cyan-400' : 'border-neutral-800 bg-neutral-950 text-neutral-400'}`}
+        class={`py-2 rounded-lg border font-semibold cursor-pointer text-xs ${projectStore.project.exportSettings.fps === 24 ? 'border-cyan-500 bg-cyan-500/10 text-cyan-400' : 'border-neutral-800 bg-neutral-950 text-neutral-400'}`}
+        onclick={() => { projectStore.project.exportSettings.fps = 24; projectStore.saveToDB(); }}
+      >
+        24 FPS 🎬
+      </button>
+      <button 
+        class={`py-2 rounded-lg border font-semibold cursor-pointer text-xs ${projectStore.project.exportSettings.fps === 30 ? 'border-cyan-500 bg-cyan-500/10 text-cyan-400' : 'border-neutral-800 bg-neutral-950 text-neutral-400'}`}
         onclick={() => { projectStore.project.exportSettings.fps = 30; projectStore.saveToDB(); }}
       >
         30 FPS
       </button>
       <button 
-        class={`py-2 rounded-lg border font-semibold cursor-pointer ${projectStore.project.exportSettings.fps === 60 ? 'border-cyan-500 bg-cyan-500/10 text-cyan-400' : 'border-neutral-800 bg-neutral-950 text-neutral-400'}`}
+        class={`py-2 rounded-lg border font-semibold cursor-pointer text-xs ${projectStore.project.exportSettings.fps === 60 ? 'border-cyan-500 bg-cyan-500/10 text-cyan-400' : 'border-neutral-800 bg-neutral-950 text-neutral-400'}`}
         onclick={() => { projectStore.project.exportSettings.fps = 60; projectStore.saveToDB(); }}
       >
         60 FPS

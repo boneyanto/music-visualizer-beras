@@ -205,6 +205,9 @@ export interface TracklistOverlayConfig {
   opacity: number;
   shadow: boolean;
   shadowColor: string;
+  stroke?: boolean;
+  strokeColor?: string;
+  strokeWidth?: number;
   nowPlayingAnimation: NowPlayingAnimationType;
   followBeat: boolean;
   beatSensitivity: number;
@@ -234,7 +237,7 @@ export interface ExportSettings {
   resolution: '1080x1920' | '1920x1080' | '1080x1080' | '720x1280' | '1280x720';
   width: number;
   height: number;
-  fps: 30 | 60;
+  fps: 24 | 30 | 60;
   format: 'mp4' | 'webm';
   videoBitrate: number;
   audioBitrate: number;

@@ -72,6 +72,14 @@ export class TracklistOverlayRenderer {
             tCtx.shadowOffsetX = 2 * scaleFactor;
             tCtx.shadowOffsetY = 3 * scaleFactor;
           }
+
+          if (config.stroke) {
+            tCtx.strokeStyle = config.strokeColor || '#000000';
+            tCtx.lineWidth = (config.strokeWidth || 3) * scaleFactor;
+            tCtx.lineJoin = 'round';
+            tCtx.strokeText(config.title, anchorX, anchorY);
+          }
+
           tCtx.fillStyle = config.accentColor || '#38bdf8';
           tCtx.fillText(config.title, anchorX, anchorY);
 
@@ -123,8 +131,9 @@ export class TracklistOverlayRenderer {
       mCtx.font = activeFont;
       const activeMetrics = mCtx.measureText(fullText);
 
-      const iWidth = Math.max(1, Math.ceil(activeMetrics.width) + shadowPad * 2 + Math.ceil(50 * scaleFactor));
-      const iHeight = Math.max(1, Math.ceil(baseFontSize * 1.6) + shadowPad * 2);
+      const outlinePadding = config.stroke ? Math.ceil((config.strokeWidth || 3) * scaleFactor * 2) : 0;
+      const iWidth = Math.max(1, Math.ceil(activeMetrics.width) + shadowPad * 2 + Math.ceil(50 * scaleFactor) + outlinePadding);
+      const iHeight = Math.max(1, Math.ceil(baseFontSize * 1.6) + shadowPad * 2 + outlinePadding);
 
       let anchorX = shadowPad;
       if (config.alignment === 'center') anchorX = iWidth / 2;
@@ -144,11 +153,17 @@ export class TracklistOverlayRenderer {
           inCtx.shadowOffsetX = 2 * scaleFactor;
           inCtx.shadowOffsetY = 2 * scaleFactor;
         }
+        if (config.stroke) {
+          inCtx.strokeStyle = config.strokeColor || '#000000';
+          inCtx.lineWidth = (config.strokeWidth || 3) * scaleFactor;
+          inCtx.lineJoin = 'round';
+          inCtx.strokeText(fullText, anchorX, anchorY);
+        }
         inCtx.fillStyle = config.color || '#ffffff';
         inCtx.fillText(fullText, anchorX, anchorY);
       }
 
-      // Active Canvas
+      // Active Canvas (Clean Drop Shadow without glowing halo)
       const actCanvas = new OffscreenCanvas(iWidth, iHeight);
       const actCtx = actCanvas.getContext('2d');
       if (actCtx) {
@@ -156,8 +171,17 @@ export class TracklistOverlayRenderer {
         actCtx.textAlign = config.alignment || 'left';
         actCtx.textBaseline = 'middle';
         if (config.shadow) {
-          actCtx.shadowColor = config.activeColor || '#38bdf8';
-          actCtx.shadowBlur = 14 * scaleFactor;
+          // Drop shadow preserved (clean, non-glow dark shadow)
+          actCtx.shadowColor = config.shadowColor || 'rgba(0, 0, 0, 0.9)';
+          actCtx.shadowBlur = 6 * scaleFactor;
+          actCtx.shadowOffsetX = 2 * scaleFactor;
+          actCtx.shadowOffsetY = 2 * scaleFactor;
+        }
+        if (config.stroke) {
+          actCtx.strokeStyle = config.strokeColor || '#000000';
+          actCtx.lineWidth = (config.strokeWidth || 3) * scaleFactor;
+          actCtx.lineJoin = 'round';
+          actCtx.strokeText(fullText, anchorX, anchorY);
         }
         actCtx.fillStyle = config.activeColor || '#38bdf8';
         actCtx.fillText(fullText, anchorX, anchorY);
@@ -378,8 +402,6 @@ export class TracklistOverlayRenderer {
           }
         } else if (anim === 'glow-badge') {
           lineAlpha = 0.85 + Math.sin(currentTime * 5) * 0.15;
-          ctx.shadowColor = config.activeColor || '#38bdf8';
-          ctx.shadowBlur = (14 + Math.sin(currentTime * 6) * 5) * scaleFactor;
         } else if (anim === 'sliding-accent') {
           const slideOffset = Math.sin(currentTime * 3) * 6 * scaleFactor;
           itemX += config.alignment === 'right' ? -slideOffset : slideOffset;
@@ -390,7 +412,7 @@ export class TracklistOverlayRenderer {
 
       ctx.font = `${isActive ? 'bold' : '500'} ${lineFontSize}px "${font}", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif`;
 
-      if (config.shadow && !isActive) {
+      if (config.shadow) {
         ctx.shadowColor = config.shadowColor || 'rgba(0, 0, 0, 0.9)';
         ctx.shadowBlur = 6 * scaleFactor;
         ctx.shadowOffsetX = 2 * scaleFactor;
@@ -401,6 +423,16 @@ export class TracklistOverlayRenderer {
 
       if (isActive && config.nowPlayingAnimation === 'equalizer-indicator') {
         this.renderMiniEqualizer(ctx, itemX, itemY, lineFontSize, config.activeColor || '#38bdf8', currentTime, beatFactor, config.alignment, scaleFactor);
+      }
+
+      if (config.stroke) {
+        ctx.save();
+        ctx.strokeStyle = config.strokeColor || '#000000';
+        ctx.lineWidth = (config.strokeWidth ?? 3) * scaleFactor;
+        ctx.lineJoin = 'round';
+        ctx.miterLimit = 2;
+        ctx.strokeText(fullText, itemX, itemY);
+        ctx.restore();
       }
 
       if (isActive) {
