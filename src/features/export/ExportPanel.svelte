@@ -43,7 +43,7 @@
   </div>
 
   <div class="p-3 bg-neutral-950/60 rounded-lg border border-neutral-800 text-[11px] text-neutral-400 space-y-1">
-    <div class="text-neutral-300 font-medium">WebCodecs + Mediabunny Pipeline</div>
+    <div class="text-neutral-300 font-medium">Native High-Performance Render Engine</div>
     <div>Rendering chunked off-thread di Web Worker dengan GPU Hardware acceleration & zero memory leak.</div>
   </div>
 </div>

@@ -277,13 +277,20 @@
                 {:else if videoExporter.stage === 'encoding_audio'}
                   Mengompres Audio Track (AAC)...
                 {:else if videoExporter.stage === 'finalizing'}
-                  Menyusun & Menyimpan File MP4...
+                  Menyusun & Menyimpan File MP4 (Mohon tunggu, jangan tutup aplikasi)...
                 {:else}
                   Encoding Video Frames...
                 {/if}
               </span>
               <span class="font-mono text-cyan-400 font-bold text-sm">{Math.round(videoExporter.progress * 100)}%</span>
             </div>
+
+            {#if videoExporter.stage === 'finalizing'}
+              <div class="p-2.5 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-300 text-[11px] flex items-center gap-2 animate-pulse">
+                <Hourglass class="w-4 h-4 shrink-0 text-amber-400" />
+                <span><b>Sedang Menggabungkan Audio & Video:</b> Mohon jangan tutup aplikasi sampai file MP4 selesai disimpan.</span>
+              </div>
+            {/if}
 
             <!-- Progress Bar -->
             <div class="w-full h-3 bg-neutral-800 rounded-full overflow-hidden p-0.5 border border-neutral-700/50">
