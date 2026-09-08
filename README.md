@@ -8,10 +8,10 @@ Aplikasi visualizer musik & generator video desktop modern berbasis **Tauri v2 +
 
 Bagi Anda yang hanya ingin menggunakan aplikasi untuk membuat video visualizer musik, **TIDAK PERLU menginstal Node.js, Python, atau tools pemrograman apa pun**. Cukup download installer resmi siap pakai:
 
-👉 **[Download Rilis Terbaru (v1.3.0)](https://github.com/boneyanto/music-visualizer-beras/releases/latest)**
+👉 **[Download Rilis Terbaru (v1.6.1)](https://github.com/boneyanto/music-visualizer-beras/releases/latest)**
 
 * 🍏 **macOS:** Download file `.dmg` (Apple Silicon M1/M2/M3/M4 & Intel). Buka dan drag ke folder `Applications`.
-* 🪟 **Windows:** Download file `.msi` atau `.exe` (Windows 10 / 11). Jalankan installer dan aplikasi siap digunakan.
+* 🪟 **Windows:** Download file `.exe` atau `.msi` (Windows 10 / 11). Jalankan installer dan aplikasi siap digunakan.
 
 ---
 
