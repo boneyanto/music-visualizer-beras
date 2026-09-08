@@ -7,7 +7,7 @@ fn main() {
     // Must be set before any WebView2 runtime loader or Tauri window is created
     std::env::set_var(
       "WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS",
-      "--ignore-gpu-blocklist --enable-gpu-rasterization --enable-accelerated-video-encode --enable-accelerated-video-decode --use-angle=d3d11 --force_high_performance_gpu --enable-zero-copy"
+      "--ignore-gpu-blocklist --enable-gpu-rasterization --enable-accelerated-2d-canvas --canvas-oop-rasterization --enable-accelerated-video-encode --enable-accelerated-video-decode --use-angle=d3d11 --force_high_performance_gpu --enable-zero-copy --enable-features=CanvasOopRasterization,AcceleratedVideoEncoder"
     );
   }
 

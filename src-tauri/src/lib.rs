@@ -105,10 +105,10 @@ fn open_external_url(url: String) -> Result<(), String> {
 pub fn run() {
   #[cfg(target_os = "windows")]
   {
-    // Force enable full GPU rasterization, D3D11 backend, hardware video encode/decode, and bypass driver blocklist on Windows WebView2
+    // Force enable full GPU rasterization, D3D11 backend, hardware video encode/decode, 2D canvas GPU acceleration, and bypass driver blocklist
     std::env::set_var(
       "WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS",
-      "--ignore-gpu-blocklist --enable-gpu-rasterization --enable-accelerated-video-encode --enable-accelerated-video-decode --use-angle=d3d11 --force_high_performance_gpu --enable-zero-copy"
+      "--ignore-gpu-blocklist --enable-gpu-rasterization --enable-accelerated-2d-canvas --canvas-oop-rasterization --enable-accelerated-video-encode --enable-accelerated-video-decode --use-angle=d3d11 --force_high_performance_gpu --enable-zero-copy --enable-features=CanvasOopRasterization,AcceleratedVideoEncoder"
     );
   }
 
