@@ -1,4 +1,4 @@
-name: Release App (Windows, macOS & Android)
+name: Release App (Windows & macOS)
 
 on:
   push:
@@ -15,7 +15,6 @@ on:
           - all
           - windows
           - macos
-          - android
 
 jobs:
   build-windows:
@@ -106,67 +105,3 @@ jobs:
           releaseDraft: false
           prerelease: false
           args: '--target aarch64-apple-darwin'
-
-  build-android:
-    name: Build Android (.apk)
-    if: github.event_name == 'push' || inputs.platform == 'all' || inputs.platform == 'android'
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Install pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 10
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: 'pnpm'
-
-      - name: Setup Java (JDK 17)
-        uses: actions/setup-java@v4
-        with:
-          distribution: 'zulu'
-          java-version: '17'
-
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
-
-      - name: Install NDK
-        run: |
-          ${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager --install "ndk;27.0.12077973"
-          echo "NDK_HOME=${ANDROID_HOME}/ndk/27.0.12077973" >> $GITHUB_ENV
-
-      - name: Install Rust stable & Android targets
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: 'aarch64-linux-android,armv7-linux-androideabi,x86_64-linux-android,i686-linux-android'
-
-      - name: Rust cache
-        uses: swatinem/rust-cache@v2
-        with:
-          workspaces: './src-tauri -> target'
-
-      - name: Install Frontend Dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Initialize Tauri Android project
-        run: pnpm tauri android init --ci
-
-      - name: Build Android APK
-        run: pnpm tauri android build --apk
-
-      - name: Upload APKs to GitHub Release
-        uses: softprops/action-gh-release@v2
-        if: startsWith(github.ref, 'refs/tags/')
-        with:
-          files: |
-            src-tauri/gen/android/app/build/outputs/apk/universal/release/*.apk
-            src-tauri/gen/android/app/build/outputs/apk/*/*/*.apk
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

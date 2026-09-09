@@ -885,63 +885,84 @@ function drawImageOverlays(
 }
 
 /**
- * Free Use Dynamic Random Watermark
- * Ultra-fast zero-allocation 2D canvas drawing.
- * Randomizes position across render runs, with subtle periodic floating drift
- * so it cannot be easily removed with automated video inpainting/cropping.
+ * Aesthetic Non-Intrusive Watermark (Zero allocation, ultra-lightweight)
+ * Positioned cleanly in the corner (bottom-right safe area) with elegant glassmorphism style,
+ * crisp typography ("Made with Beras Visualizer"), and subtle wave bars.
+ * Does not obscure center visuals, lyrics, or audio spectrum.
  */
 function drawDynamicWatermark(
   ctx: OffscreenCanvasRenderingContext2D,
   width: number,
   height: number,
   currentTime: number,
-  baseX: number,
-  baseY: number,
+  _baseX: number,
+  _baseY: number,
   seed: number
 ) {
   ctx.save();
 
-  // Subtle floating motion based on time and seed
-  const driftX = Math.sin(currentTime * 0.8 + seed) * (width * 0.04);
-  const driftY = Math.cos(currentTime * 0.6 + seed) * (height * 0.04);
+  // Subtle breathing opacity (0.78 ~ 0.92) - purely aesthetic & lively
+  const breath = 0.85 + Math.sin(currentTime * 1.2 + seed) * 0.07;
 
-  const x = Math.max(120, Math.min(width - 120, baseX + driftX));
-  const y = Math.max(60, Math.min(height - 60, baseY + driftY));
+  // Responsive sizing based on canvas resolution (1080p / 720p / 9:16 / 1:1)
+  const scale = Math.min(width, height) / 1080;
+  const paddingX = Math.round(14 * scale);
+  const paddingY = Math.round(8 * scale);
+  const fontSize = Math.max(11, Math.round(13 * scale));
+  
+  ctx.font = `600 ${fontSize}px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif`;
+  const text = 'Made with Beras Visualizer';
+  const textMetrics = ctx.measureText(text);
+  const textWidth = textMetrics.width;
 
-  const textPrimary = 'BERAS VISUALIZER';
-  const textSecondary = 'FREE USE EDITION • PROSES AIRMARK';
+  // Soundwave decorative indicator dimensions
+  const waveWidth = Math.round(18 * scale);
+  const waveGap = Math.round(8 * scale);
+  const badgeWidth = textWidth + waveWidth + waveGap + paddingX * 2;
+  const badgeHeight = Math.max(26, Math.round(28 * scale) + paddingY);
+  const radius = Math.round(badgeHeight / 2);
 
-  const badgeW = Math.max(260, width * 0.22);
-  const badgeH = Math.max(48, height * 0.06);
+  // Position at bottom-right safe margin (leaving room above player controls/progress bars)
+  const marginX = Math.round(Math.max(20, width * 0.025));
+  const marginY = Math.round(Math.max(20, height * 0.035));
+  const x = width - marginX - badgeWidth;
+  const y = height - marginY - badgeHeight;
 
-  // Watermark semi-transparent background capsule
+  // Glassmorphism subtle capsule background
   ctx.translate(x, y);
-  ctx.fillStyle = 'rgba(0, 0, 0, 0.45)';
-  ctx.strokeStyle = 'rgba(255, 255, 255, 0.25)';
-  ctx.lineWidth = 1.5;
-
-  const halfW = badgeW / 2;
-  const halfH = badgeH / 2;
-  const radius = Math.min(10, halfH / 2);
-
   ctx.beginPath();
-  ctx.roundRect(-halfW, -halfH, badgeW, badgeH, radius);
+  ctx.roundRect(0, 0, badgeWidth, badgeHeight, radius);
+  ctx.fillStyle = `rgba(10, 10, 14, ${0.45 * breath})`;
   ctx.fill();
+  ctx.strokeStyle = `rgba(255, 255, 255, ${0.18 * breath})`;
+  ctx.lineWidth = 1;
   ctx.stroke();
 
-  // Watermark Text with high contrast
-  ctx.textAlign = 'center';
+  // Draw 3 small aesthetic equalizer bars on the left of the pill
+  const barBaseX = paddingX + 2;
+  const barCenterY = badgeHeight / 2;
+  const barW = Math.max(2, Math.round(2.5 * scale));
+  const barSpacing = Math.max(4, Math.round(5 * scale));
+  
+  for (let i = 0; i < 3; i++) {
+    // Dynamic micro-bars reacting rhythmically
+    const barH = Math.max(4, Math.round((8 + Math.sin(currentTime * 4.0 + i * 1.6) * 5) * scale));
+    const bx = barBaseX + i * barSpacing;
+    const by = barCenterY - barH / 2;
+
+    ctx.beginPath();
+    ctx.roundRect(bx, by, barW, barH, Math.max(1, barW / 2));
+    ctx.fillStyle = i === 1 
+      ? `rgba(6, 182, 212, ${0.90 * breath})` // Cyan highlight
+      : `rgba(255, 255, 255, ${0.75 * breath})`;
+    ctx.fill();
+  }
+
+  // Draw modern clean text
+  ctx.textAlign = 'left';
   ctx.textBaseline = 'middle';
-
-  // Primary title
-  ctx.font = `bold ${Math.round(badgeH * 0.36)}px sans-serif`;
-  ctx.fillStyle = 'rgba(255, 255, 255, 0.85)';
-  ctx.fillText(textPrimary, 0, -badgeH * 0.14);
-
-  // Secondary subtext
-  ctx.font = `${Math.round(badgeH * 0.22)}px sans-serif`;
-  ctx.fillStyle = 'rgba(245, 158, 11, 0.90)'; // Amber warning tone
-  ctx.fillText(textSecondary, 0, badgeH * 0.22);
+  ctx.fillStyle = `rgba(255, 255, 255, ${0.90 * breath})`;
+  ctx.fillText(text, paddingX + waveWidth + waveGap, badgeHeight / 2);
 
   ctx.restore();
 }

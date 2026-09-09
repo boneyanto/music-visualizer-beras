@@ -77,6 +77,14 @@ export class VideoExporter {
           this.cleanup();
 
           const blob = new Blob([data.buffer], { type: 'video/mp4' });
+
+          // If this export used up a free quota token (i.e. not PRO license), decrement the quota
+          if (!licenseManager.isLicensed && licenseManager.freeQuotaRemaining > 0) {
+            licenseManager.consumeFreeQuota().catch((qErr) => {
+              console.warn('Failed to deduct quota token:', qErr);
+            });
+          }
+
           resolve(blob);
         } else if (data.type === 'ERROR') {
           this.isExporting = false;
@@ -190,6 +198,8 @@ export class VideoExporter {
       });
 
 
+      const shouldRenderWatermarkFree = licenseManager.isWatermarkFree;
+
       // Send payload to worker
       this.worker.postMessage({
         type: 'START_RENDER',
@@ -202,7 +212,7 @@ export class VideoExporter {
         videoFramesMap,
         videoDurationsMap,
         fontBuffers,
-        isLicensed: licenseManager.isLicensed,
+        isLicensed: shouldRenderWatermarkFree,
       }, transferables);
 
     });

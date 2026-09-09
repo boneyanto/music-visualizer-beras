@@ -123,6 +123,7 @@ pub fn run() {
       save_text_file,
       open_external_url,
       license::get_license_info,
+      license::consume_free_export_quota,
       license::activate_license
     ])
     .setup(|_app| {

@@ -128,24 +128,52 @@
       <!-- Content (Scrollable) -->
       <div class="p-4 sm:p-6 space-y-4 sm:space-y-5 flex-1 overflow-y-auto min-h-0">
         
-        <!-- Free Watermark Warning Notice -->
+        <!-- Free Watermark & Quota Notification Notice -->
         {#if !licenseManager.isLicensed}
-          <div class="p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl flex items-center justify-between text-xs text-amber-300">
-            <div class="flex items-center gap-2.5">
-              <ShieldAlert class="w-4 h-4 text-amber-400 shrink-0" />
-              <div>
-                <span class="font-semibold text-amber-200">Mode Free Use Aktif:</span>
-                <span class="text-neutral-300 ml-1">Video akan memiliki watermark acak.</span>
+          {#if licenseManager.freeQuotaRemaining > 0}
+            <div class="p-3.5 bg-gradient-to-r from-cyan-950/60 to-blue-950/40 border border-cyan-500/30 rounded-xl flex items-center justify-between text-xs text-cyan-200">
+              <div class="flex items-center gap-2.5">
+                <div class="w-7 h-7 rounded-lg bg-cyan-500/20 text-cyan-300 flex items-center justify-center shrink-0">
+                  <Sparkles class="w-4 h-4" />
+                </div>
+                <div>
+                  <div class="font-bold text-cyan-100 flex items-center gap-1.5">
+                    <span>Bonus Kuota Free: Bebas Watermark</span>
+                    <span class="text-[10px] px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 font-mono font-bold">
+                      {licenseManager.freeQuotaRemaining} Ekspor Tersisa
+                    </span>
+                  </div>
+                  <div class="text-[11px] text-neutral-300 mt-0.5">
+                    Hasil render otomatis bersih tanpa watermark!
+                  </div>
+                </div>
               </div>
+              <button
+                type="button"
+                onclick={() => onOpenLicense?.()}
+                class="px-2.5 py-1 bg-cyan-500/10 hover:bg-cyan-500/25 text-cyan-300 font-medium rounded-lg text-[11px] transition-colors cursor-pointer border border-cyan-500/30 shrink-0"
+              >
+                Info Lisensi
+              </button>
             </div>
-            <button
-              type="button"
-              onclick={() => onOpenLicense?.()}
-              class="px-2.5 py-1 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 font-semibold rounded-lg text-[11px] transition-colors cursor-pointer border border-amber-500/30 shrink-0"
-            >
-              Hapus Watermark (PRO)
-            </button>
-          </div>
+          {:else}
+            <div class="p-3 bg-neutral-900/90 border border-neutral-800 rounded-xl flex items-center justify-between text-xs text-neutral-300">
+              <div class="flex items-center gap-2.5">
+                <ShieldAlert class="w-4 h-4 text-amber-400 shrink-0" />
+                <div>
+                  <span class="font-semibold text-neutral-200">Mode Free Edition:</span>
+                  <span class="text-neutral-400 ml-1">Menyertakan watermark elegan di sudut video.</span>
+                </div>
+              </div>
+              <button
+                type="button"
+                onclick={() => onOpenLicense?.()}
+                class="px-2.5 py-1 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 font-semibold rounded-lg text-[11px] transition-colors cursor-pointer border border-amber-500/30 shrink-0"
+              >
+                Hapus Watermark (PRO)
+              </button>
+            </div>
+          {/if}
         {/if}
 
         <!-- Video Specs & Direct Resolution Quick Selector -->
@@ -403,14 +431,19 @@
             <Download class="w-4 h-4" />
             Download Lagi
           </button>
-        {:else}
           <button 
             type="button"
             onclick={handleStartExport}
             class="px-5 py-2.5 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 bg-cyan-500 hover:bg-cyan-400 text-white text-xs font-semibold flex items-center gap-2 shadow-lg shadow-cyan-500/20 transition-all active:scale-95 cursor-pointer"
           >
             <Sparkles class="w-4 h-4" />
-            Mulai Render MP4
+            {#if licenseManager.isLicensed}
+              Mulai Render MP4 (PRO)
+            {:else if licenseManager.freeQuotaRemaining > 0}
+              Mulai Render ({licenseManager.freeQuotaRemaining} Kuota Bebas Watermark)
+            {:else}
+              Mulai Render MP4
+            {/if}
           </button>
         {/if}
       </div>

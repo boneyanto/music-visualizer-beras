@@ -124,6 +124,10 @@
                 <span class="text-[9px] sm:text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 font-semibold uppercase tracking-wider">
                   PRO Active
                 </span>
+              {:else if licenseManager.freeQuotaRemaining > 0}
+                <span class="text-[9px] sm:text-[10px] px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 font-semibold uppercase tracking-wider">
+                  Free Quota: {licenseManager.freeQuotaRemaining} Tersisa
+                </span>
               {:else}
                 <span class="text-[9px] sm:text-[10px] px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-400 border border-amber-500/30 font-semibold uppercase tracking-wider">
                   Free Edition
@@ -131,7 +135,13 @@
               {/if}
             </div>
             <p class="text-[10px] sm:text-[11px] text-neutral-400 mt-0.5 truncate">
-              {licenseManager.isLicensed ? 'Aplikasi berlisensi penuh. Watermark bebas 100%.' : 'Free use menyertakan watermark acak saat render video.'}
+              {#if licenseManager.isLicensed}
+                Aplikasi berlisensi penuh. Watermark bebas 100% selamanya.
+              {:else if licenseManager.freeQuotaRemaining > 0}
+                Anda memiliki {licenseManager.freeQuotaRemaining} token render gratis tanpa watermark.
+              {:else}
+                Ekspor gratis menyertakan watermark minimalis "Made with Beras Visualizer".
+              {/if}
             </p>
           </div>
         </div>
