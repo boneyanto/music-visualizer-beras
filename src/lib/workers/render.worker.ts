@@ -102,6 +102,51 @@ self.onmessage = async (e: MessageEvent<RenderRequest | { type: 'CANCEL' }>) => 
       tracklistOverlayRenderer.prepareCache(width, height, project.overlays.tracklist, project.audio?.tracks);
     }
 
+    // 2b. Pre-cache Watermark Typography & Layout Metrics (Avoid ctx.measureText() & font string parsing per frame)
+    const watermarkScale = Math.min(width, height) / 1080;
+    const wmPaddingX = Math.round(14 * watermarkScale);
+    const wmPaddingY = Math.round(8 * watermarkScale);
+    const wmFontSize = Math.max(11, Math.round(13 * watermarkScale));
+    const wmFont = `600 ${wmFontSize}px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif`;
+    ctx.font = wmFont;
+    const wmText = 'Made with Beras Visualizer';
+    const wmTextWidth = ctx.measureText(wmText).width;
+    const wmWaveWidth = Math.round(18 * watermarkScale);
+    const wmWaveGap = Math.round(8 * watermarkScale);
+    const wmBadgeWidth = wmTextWidth + wmWaveWidth + wmWaveGap + wmPaddingX * 2;
+    const wmBadgeHeight = Math.max(26, Math.round(28 * watermarkScale) + wmPaddingY);
+    const wmRadius = Math.round(wmBadgeHeight / 2);
+    const wmMarginX = Math.round(Math.max(20, width * 0.025));
+    const wmMarginY = Math.round(Math.max(20, height * 0.035));
+    const wmX = width - wmMarginX - wmBadgeWidth;
+    const wmY = height - wmMarginY - wmBadgeHeight;
+    const wmBarBaseX = wmPaddingX + 2;
+    const wmBarCenterY = wmBadgeHeight / 2;
+    const wmBarW = Math.max(2, Math.round(2.5 * watermarkScale));
+    const wmBarSpacing = Math.max(4, Math.round(5 * watermarkScale));
+    const wmTextX = wmPaddingX + wmWaveWidth + wmWaveGap;
+    const wmMetrics = {
+      scale: watermarkScale,
+      paddingX: wmPaddingX,
+      paddingY: wmPaddingY,
+      fontSize: wmFontSize,
+      font: wmFont,
+      text: wmText,
+      textWidth: wmTextWidth,
+      waveWidth: wmWaveWidth,
+      waveGap: wmWaveGap,
+      badgeWidth: wmBadgeWidth,
+      badgeHeight: wmBadgeHeight,
+      radius: wmRadius,
+      x: wmX,
+      y: wmY,
+      barBaseX: wmBarBaseX,
+      barCenterY: wmBarCenterY,
+      barW: wmBarW,
+      barSpacing: wmBarSpacing,
+      textX: wmTextX,
+    };
+
     // Setup Mediabunny Output & Tracks
     const target = new BufferTarget();
     const output = new Output({
@@ -336,7 +381,7 @@ self.onmessage = async (e: MessageEvent<RenderRequest | { type: 'CANCEL' }>) => 
 
         // 6b. Free Use Dynamic Random Watermark (Zero allocation, ultra-lightweight)
         if (!isLicensed) {
-          drawDynamicWatermark(ctx, width, height, currentTime, watermarkBaseX, watermarkBaseY, watermarkSeed);
+          drawDynamicWatermark(ctx, currentTime, watermarkSeed, wmMetrics);
         }
 
         // 7. Create VideoFrame from OffscreenCanvas
@@ -898,46 +943,39 @@ function drawImageOverlays(
  */
 function drawDynamicWatermark(
   ctx: OffscreenCanvasRenderingContext2D,
-  width: number,
-  height: number,
   currentTime: number,
-  _baseX: number,
-  _baseY: number,
-  seed: number
+  seed: number,
+  m: {
+    scale: number;
+    paddingX: number;
+    paddingY: number;
+    fontSize: number;
+    font: string;
+    text: string;
+    textWidth: number;
+    waveWidth: number;
+    waveGap: number;
+    badgeWidth: number;
+    badgeHeight: number;
+    radius: number;
+    x: number;
+    y: number;
+    barBaseX: number;
+    barCenterY: number;
+    barW: number;
+    barSpacing: number;
+    textX: number;
+  }
 ) {
   ctx.save();
 
   // Subtle breathing opacity (0.78 ~ 0.92) - purely aesthetic & lively
   const breath = 0.85 + Math.sin(currentTime * 1.2 + seed) * 0.07;
 
-  // Responsive sizing based on canvas resolution (1080p / 720p / 9:16 / 1:1)
-  const scale = Math.min(width, height) / 1080;
-  const paddingX = Math.round(14 * scale);
-  const paddingY = Math.round(8 * scale);
-  const fontSize = Math.max(11, Math.round(13 * scale));
-  
-  ctx.font = `600 ${fontSize}px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif`;
-  const text = 'Made with Beras Visualizer';
-  const textMetrics = ctx.measureText(text);
-  const textWidth = textMetrics.width;
-
-  // Soundwave decorative indicator dimensions
-  const waveWidth = Math.round(18 * scale);
-  const waveGap = Math.round(8 * scale);
-  const badgeWidth = textWidth + waveWidth + waveGap + paddingX * 2;
-  const badgeHeight = Math.max(26, Math.round(28 * scale) + paddingY);
-  const radius = Math.round(badgeHeight / 2);
-
-  // Position at bottom-right safe margin (leaving room above player controls/progress bars)
-  const marginX = Math.round(Math.max(20, width * 0.025));
-  const marginY = Math.round(Math.max(20, height * 0.035));
-  const x = width - marginX - badgeWidth;
-  const y = height - marginY - badgeHeight;
-
-  // Glassmorphism subtle capsule background
-  ctx.translate(x, y);
+  // Glassmorphism subtle capsule background at pre-calculated safe corner position
+  ctx.translate(m.x, m.y);
   ctx.beginPath();
-  ctx.roundRect(0, 0, badgeWidth, badgeHeight, radius);
+  ctx.roundRect(0, 0, m.badgeWidth, m.badgeHeight, m.radius);
   ctx.fillStyle = `rgba(10, 10, 14, ${0.45 * breath})`;
   ctx.fill();
   ctx.strokeStyle = `rgba(255, 255, 255, ${0.18 * breath})`;
@@ -945,30 +983,25 @@ function drawDynamicWatermark(
   ctx.stroke();
 
   // Draw 3 small aesthetic equalizer bars on the left of the pill
-  const barBaseX = paddingX + 2;
-  const barCenterY = badgeHeight / 2;
-  const barW = Math.max(2, Math.round(2.5 * scale));
-  const barSpacing = Math.max(4, Math.round(5 * scale));
-  
   for (let i = 0; i < 3; i++) {
-    // Dynamic micro-bars reacting rhythmically
-    const barH = Math.max(4, Math.round((8 + Math.sin(currentTime * 4.0 + i * 1.6) * 5) * scale));
-    const bx = barBaseX + i * barSpacing;
-    const by = barCenterY - barH / 2;
+    const barH = Math.max(4, Math.round((8 + Math.sin(currentTime * 4.0 + i * 1.6) * 5) * m.scale));
+    const bx = m.barBaseX + i * m.barSpacing;
+    const by = m.barCenterY - barH / 2;
 
     ctx.beginPath();
-    ctx.roundRect(bx, by, barW, barH, Math.max(1, barW / 2));
+    ctx.roundRect(bx, by, m.barW, barH, Math.max(1, m.barW / 2));
     ctx.fillStyle = i === 1 
       ? `rgba(6, 182, 212, ${0.90 * breath})` // Cyan highlight
       : `rgba(255, 255, 255, ${0.75 * breath})`;
     ctx.fill();
   }
 
-  // Draw modern clean text
+  // Draw modern clean text with pre-cached typography font
+  ctx.font = m.font;
   ctx.textAlign = 'left';
   ctx.textBaseline = 'middle';
   ctx.fillStyle = `rgba(255, 255, 255, ${0.90 * breath})`;
-  ctx.fillText(text, paddingX + waveWidth + waveGap, badgeHeight / 2);
+  ctx.fillText(m.text, m.textX, m.badgeHeight / 2);
 
   ctx.restore();
 }

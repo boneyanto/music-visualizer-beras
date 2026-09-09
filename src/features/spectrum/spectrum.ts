@@ -8,12 +8,15 @@ const NEON_PALETTE = ['#00f5d4', '#7b2cbf', '#f72585', '#4cc9f0', '#fee440'];
 const PRISM_PALETTE = ['#e0e7ff', '#a5b4fc', '#818cf8', '#6366f1', '#4f46e5'];
 
 export class SpectrumRenderer {
+  // Reusable static Uint8Array mirror buffer to guarantee zero heap allocation per frame
+  private mirrorBuffer = new Uint8Array(512);
+
   render(
     ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
     width: number,
     height: number,
     config: SpectrumConfig,
-    frequencies: Uint8Array | Float32Array,
+    frequencies: Uint8Array,
     rawBeatFactor: number = 1.0
   ) {
     if (!config.enabled || frequencies.length === 0) return;
@@ -32,19 +35,21 @@ export class SpectrumRenderer {
 
     const count = Math.min(config.barCount, frequencies.length);
 
-    // Symmetrical mirror data if enabled
-    let freqData: Uint8Array | Float32Array = frequencies;
+    // Symmetrical mirror data if enabled (Zero-allocation Uint8Array copy)
+    let freqData: Uint8Array = frequencies;
     if (config.mirror && count > 2) {
-      const mirrored = new Float32Array(count);
+      if (this.mirrorBuffer.length < count) {
+        this.mirrorBuffer = new Uint8Array(Math.max(count, 512));
+      }
       const half = Math.ceil(count / 2);
       for (let i = 0; i < half; i++) {
         const srcVal = frequencies[Math.floor((i / half) * (frequencies.length / 2))] || 0;
-        mirrored[half - 1 - i] = srcVal;
+        this.mirrorBuffer[half - 1 - i] = srcVal;
         if (half + i < count) {
-          mirrored[half + i] = srcVal;
+          this.mirrorBuffer[half + i] = srcVal;
         }
       }
-      freqData = mirrored;
+      freqData = this.mirrorBuffer;
     }
 
     const style = config.style;
@@ -140,7 +145,20 @@ export class SpectrumRenderer {
     const isOutline = style === 'Outline';
     const isAlpha = style === 'Alpha Bars';
     const isMatrix = style === 'Matrix Rain';
+    const isLumi = style === 'Lumi Bars';
+    const isLevelColor = style === 'Bar Level Color';
+    const isIndexColor = style === 'Bar Index Color';
+    const isStandardBars = !isMatrix && !isLumi && !isLevelColor && !isIndexColor;
     const time = Date.now() * 0.003;
+
+    // Fast Single Shared Gradient (created once per frame for standard bars, not 64-128x per frame)
+    let sharedGrad: CanvasGradient | null = null;
+    if (isStandardBars) {
+      const maxH = Math.max(10, config.height * scale * multiplier);
+      sharedGrad = ctx.createLinearGradient(0, posY, 0, posY - maxH);
+      sharedGrad.addColorStop(0, config.color);
+      sharedGrad.addColorStop(1, config.secondaryColor);
+    }
 
     for (let i = 0; i < count; i++) {
       let rawVal = freqData[i] / 255;
@@ -170,21 +188,17 @@ export class SpectrumRenderer {
         continue;
       }
 
-      // Color computation
+      // Color computation without allocating gradients inside loop
       let fillColor: string | CanvasGradient = config.color;
-      if (style === 'Bar Level Color') {
+      if (isLevelColor) {
         fillColor = rawVal > 0.75 ? config.secondaryColor : config.color;
-      } else if (style === 'Bar Index Color') {
+      } else if (isIndexColor) {
         fillColor = i % 2 === 0 ? config.color : config.secondaryColor;
-      } else if (style === 'Lumi Bars') {
-        // Luminance-reactive glow bar
+      } else if (isLumi) {
         const lum = Math.floor(rawVal * 255);
         fillColor = `rgba(${lum}, 245, 255, ${0.4 + rawVal * 0.6})`;
-      } else {
-        const grad = ctx.createLinearGradient(x, posY, x, y);
-        grad.addColorStop(0, config.color);
-        grad.addColorStop(1, config.secondaryColor);
-        fillColor = grad;
+      } else if (sharedGrad) {
+        fillColor = sharedGrad;
       }
 
       ctx.fillStyle = fillColor;
@@ -534,72 +548,101 @@ export class SpectrumRenderer {
       return;
     }
 
-    for (let i = 0; i < count; i++) {
-      const val = freqData[i] / 255;
-      const barHeight = Math.max(3 * scaleFactor, val * config.height * scale * multiplier);
-      const angle = i * angleStep + spinOffset;
-      const dir = isInvert ? -1 : 1;
+    if (isDual || isRadialLED || isDots || isOutline) {
+      for (let i = 0; i < count; i++) {
+        const val = freqData[i] / 255;
+        const barHeight = Math.max(3 * scaleFactor, val * config.height * scale * multiplier);
+        const angle = i * angleStep + spinOffset;
+        const dir = isInvert ? -1 : 1;
 
-      if (isDual) {
-        // Dual inward and outward ray
-        const xOut = posX + Math.cos(angle) * (baseRadius + barHeight);
-        const yOut = posY + Math.sin(angle) * (baseRadius + barHeight);
-        const xIn = posX + Math.cos(angle) * Math.max(5, baseRadius - barHeight * 0.5);
-        const yIn = posY + Math.sin(angle) * Math.max(5, baseRadius - barHeight * 0.5);
-        ctx.strokeStyle = i % 2 === 0 ? config.color : config.secondaryColor;
-        ctx.lineWidth = Math.max(2 * scaleFactor, 3 * scaleFactor);
-        ctx.beginPath();
-        ctx.moveTo(xIn, yIn);
-        ctx.lineTo(xOut, yOut);
-        ctx.stroke();
-      } else if (isRadialLED) {
-        // Segmented LED radial dots along each ray
-        const segments = 6;
-        const litSegs = Math.round(val * segments);
-        for (let s = 1; s <= segments; s++) {
-          const r = baseRadius + (s / segments) * barHeight;
-          const x = posX + Math.cos(angle) * r;
-          const y = posY + Math.sin(angle) * r;
-          ctx.fillStyle = s <= litSegs ? (s > 4 ? config.secondaryColor : config.color) : 'rgba(30,30,36,0.3)';
+        if (isDual) {
+          // Dual inward and outward ray
+          const xOut = posX + Math.cos(angle) * (baseRadius + barHeight);
+          const yOut = posY + Math.sin(angle) * (baseRadius + barHeight);
+          const xIn = posX + Math.cos(angle) * Math.max(5, baseRadius - barHeight * 0.5);
+          const yIn = posY + Math.sin(angle) * Math.max(5, baseRadius - barHeight * 0.5);
+          ctx.strokeStyle = i % 2 === 0 ? config.color : config.secondaryColor;
+          ctx.lineWidth = Math.max(2 * scaleFactor, 3 * scaleFactor);
           ctx.beginPath();
-          ctx.arc(x, y, 2 * scaleFactor, 0, Math.PI * 2);
+          ctx.moveTo(xIn, yIn);
+          ctx.lineTo(xOut, yOut);
+          ctx.stroke();
+        } else if (isRadialLED) {
+          // Segmented LED radial dots along each ray
+          const segments = 6;
+          const litSegs = Math.round(val * segments);
+          for (let s = 1; s <= segments; s++) {
+            const r = baseRadius + (s / segments) * barHeight;
+            const x = posX + Math.cos(angle) * r;
+            const y = posY + Math.sin(angle) * r;
+            ctx.fillStyle = s <= litSegs ? (s > 4 ? config.secondaryColor : config.color) : 'rgba(30,30,36,0.3)';
+            ctx.beginPath();
+            ctx.arc(x, y, 2 * scaleFactor, 0, Math.PI * 2);
+            ctx.fill();
+          }
+        } else if (isDots) {
+          const x2 = posX + Math.cos(angle) * (baseRadius + dir * barHeight);
+          const y2 = posY + Math.sin(angle) * (baseRadius + dir * barHeight);
+          ctx.fillStyle = i % 2 === 0 ? config.color : config.secondaryColor;
+          ctx.beginPath();
+          ctx.arc(x2, y2, Math.max(2 * scaleFactor, (2 + val * 5) * scaleFactor), 0, Math.PI * 2);
           ctx.fill();
+        } else if (isOutline) {
+          // Hollow arc outline bounding the peak
+          const x1 = posX + Math.cos(angle) * baseRadius;
+          const y1 = posY + Math.sin(angle) * baseRadius;
+          const x2 = posX + Math.cos(angle) * (baseRadius + dir * barHeight);
+          const y2 = posY + Math.sin(angle) * (baseRadius + dir * barHeight);
+          ctx.strokeStyle = config.color;
+          ctx.lineWidth = 1.5 * scaleFactor;
+          ctx.strokeRect(x2 - 2 * scaleFactor, y2 - 2 * scaleFactor, 4 * scaleFactor, 4 * scaleFactor);
+          ctx.beginPath();
+          ctx.moveTo(x1, y1);
+          ctx.lineTo(x2, y2);
+          ctx.stroke();
         }
-      } else if (isDots) {
-        const x2 = posX + Math.cos(angle) * (baseRadius + dir * barHeight);
-        const y2 = posY + Math.sin(angle) * (baseRadius + dir * barHeight);
-        ctx.fillStyle = i % 2 === 0 ? config.color : config.secondaryColor;
-        ctx.beginPath();
-        ctx.arc(x2, y2, Math.max(2 * scaleFactor, (2 + val * 5) * scaleFactor), 0, Math.PI * 2);
-        ctx.fill();
-      } else if (isOutline) {
-        // Hollow arc outline bounding the peak
-        const x1 = posX + Math.cos(angle) * baseRadius;
-        const y1 = posY + Math.sin(angle) * baseRadius;
-        const x2 = posX + Math.cos(angle) * (baseRadius + dir * barHeight);
-        const y2 = posY + Math.sin(angle) * (baseRadius + dir * barHeight);
-        ctx.strokeStyle = config.color;
-        ctx.lineWidth = 1.5 * scaleFactor;
-        ctx.strokeRect(x2 - 2 * scaleFactor, y2 - 2 * scaleFactor, 4 * scaleFactor, 4 * scaleFactor);
-        ctx.beginPath();
-        ctx.moveTo(x1, y1);
-        ctx.lineTo(x2, y2);
-        ctx.stroke();
-      } else {
-        // Standard radial bars
-        const x1 = posX + Math.cos(angle) * baseRadius;
-        const y1 = posY + Math.sin(angle) * baseRadius;
-        const x2 = posX + Math.cos(angle) * (baseRadius + dir * barHeight);
-        const y2 = posY + Math.sin(angle) * (baseRadius + dir * barHeight);
-
-        ctx.strokeStyle = i % 2 === 0 ? config.color : config.secondaryColor;
-        ctx.lineWidth = Math.max(2 * scaleFactor, (Math.PI * 2 * baseRadius) / count - (2 * scaleFactor));
-        ctx.lineCap = 'round';
-        ctx.beginPath();
-        ctx.moveTo(x1, y1);
-        ctx.lineTo(x2, y2);
-        ctx.stroke();
       }
+      return;
+    }
+
+    // High-performance Path Batching for standard radial bars (2 draw calls instead of count draw calls)
+    if (!isDual && !isRadialLED && !isDots && !isOutline) {
+      const lineWidth = Math.max(2 * scaleFactor, (Math.PI * 2 * baseRadius) / count - (2 * scaleFactor));
+      const dir = isInvert ? -1 : 1;
+      ctx.lineWidth = lineWidth;
+      ctx.lineCap = 'round';
+
+      // Pass 1: Even bars (primary color)
+      ctx.beginPath();
+      ctx.strokeStyle = config.color;
+      for (let i = 0; i < count; i += 2) {
+        const val = freqData[i] / 255;
+        const barHeight = Math.max(3 * scaleFactor, val * config.height * scale * multiplier);
+        const angle = i * angleStep + spinOffset;
+        const x1 = posX + Math.cos(angle) * baseRadius;
+        const y1 = posY + Math.sin(angle) * baseRadius;
+        const x2 = posX + Math.cos(angle) * (baseRadius + dir * barHeight);
+        const y2 = posY + Math.sin(angle) * (baseRadius + dir * barHeight);
+        ctx.moveTo(x1, y1);
+        ctx.lineTo(x2, y2);
+      }
+      ctx.stroke();
+
+      // Pass 2: Odd bars (secondary color)
+      ctx.beginPath();
+      ctx.strokeStyle = config.secondaryColor;
+      for (let i = 1; i < count; i += 2) {
+        const val = freqData[i] / 255;
+        const barHeight = Math.max(3 * scaleFactor, val * config.height * scale * multiplier);
+        const angle = i * angleStep + spinOffset;
+        const x1 = posX + Math.cos(angle) * baseRadius;
+        const y1 = posY + Math.sin(angle) * baseRadius;
+        const x2 = posX + Math.cos(angle) * (baseRadius + dir * barHeight);
+        const y2 = posY + Math.sin(angle) * (baseRadius + dir * barHeight);
+        ctx.moveTo(x1, y1);
+        ctx.lineTo(x2, y2);
+      }
+      ctx.stroke();
     }
   }
 
@@ -881,10 +924,23 @@ export class SpectrumRenderer {
         ctx.fillRect(x, posY + 8 * scaleFactor, barWidth, halfH);
       } else {
         // Center mirror top-down (center-bars)
+        // Pass 1: Top half bars
         ctx.fillStyle = config.color;
-        ctx.fillRect(x, posY - halfH, barWidth, halfH);
+        for (let j = 0; j < count; j++) {
+          const v = freqData[j] / 255;
+          const h = Math.max(3 * scaleFactor, v * config.height * 0.55 * scale * multiplier);
+          const barX = startX + j * (barWidth + 3 * scaleFactor);
+          ctx.fillRect(barX, posY - h, barWidth, h);
+        }
+        // Pass 2: Bottom half bars
         ctx.fillStyle = config.secondaryColor;
-        ctx.fillRect(x, posY, barWidth, halfH);
+        for (let j = 0; j < count; j++) {
+          const v = freqData[j] / 255;
+          const h = Math.max(3 * scaleFactor, v * config.height * 0.55 * scale * multiplier);
+          const barX = startX + j * (barWidth + 3 * scaleFactor);
+          ctx.fillRect(barX, posY, barWidth, h);
+        }
+        return;
       }
     }
   }

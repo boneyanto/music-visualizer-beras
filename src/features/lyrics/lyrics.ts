@@ -2,6 +2,7 @@ import type { LyricConfig, LyricSegment } from '../../lib/types/project';
 
 export class LyricRenderer {
   private lastIndex: number = 0;
+  private wordsWidthCache = new Map<string, { totalWidth: number; wordWidths: number[]; fontKey: string }>();
 
   render(
     ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
@@ -157,8 +158,25 @@ export class LyricRenderer {
     }
 
     if (style === 'karaoke' && words && words.length > 0) {
-      const totalText = words.map((w) => w.word).join(' ');
-      const totalWidth = ctx.measureText(totalText).width;
+      const fontKey = ctx.font;
+      const cacheKey = activeSeg.id;
+      let cachedMetrics = this.wordsWidthCache.get(cacheKey);
+
+      if (!cachedMetrics || cachedMetrics.fontKey !== fontKey || cachedMetrics.wordWidths.length !== words.length) {
+        const wordWidths = words.map((w, idx) => {
+          const wordText = w.word + (idx < words.length - 1 ? ' ' : '');
+          return ctx.measureText(wordText).width;
+        });
+        const totalWidth = wordWidths.reduce((acc, val) => acc + val, 0);
+        cachedMetrics = { totalWidth, wordWidths, fontKey };
+        this.wordsWidthCache.set(cacheKey, cachedMetrics);
+        if (this.wordsWidthCache.size > 100) {
+          const firstKey = this.wordsWidthCache.keys().next().value;
+          if (firstKey) this.wordsWidthCache.delete(firstKey);
+        }
+      }
+
+      const totalWidth = cachedMetrics.totalWidth;
       let currentDrawX = alignment === 'left' ? anchorX : (alignment === 'right' ? anchorX - totalWidth : anchorX - totalWidth / 2);
 
       ctx.textAlign = 'left';
@@ -168,7 +186,7 @@ export class LyricRenderer {
         const isCurrentWord = currentTime >= wObj.start && currentTime <= wObj.end;
         const isPastWord = currentTime > wObj.end;
         const wordText = wObj.word + (i < words.length - 1 ? ' ' : '');
-        const wordWidth = ctx.measureText(wordText).width;
+        const wordWidth = cachedMetrics.wordWidths[i];
 
         ctx.save();
 
