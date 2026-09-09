@@ -102,35 +102,35 @@
   <!-- svelte-ignore a11y_click_events_have_key_events -->
   <!-- svelte-ignore a11y_no_static_element_interactions -->
   <div 
-    class="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in duration-200"
+    class="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 animate-in fade-in duration-200"
     onclick={(e) => e.target === e.currentTarget && close()}
   >
-    <div class="bg-neutral-900 border border-neutral-800 rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden flex flex-col text-neutral-100 animate-in zoom-in-95 duration-200">
+    <div class="bg-neutral-900 border border-neutral-800 rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden flex flex-col max-h-[88vh] text-neutral-100 animate-in zoom-in-95 duration-200">
       
-      <!-- Header -->
-      <div class="p-5 border-b border-neutral-800 flex items-center justify-between bg-neutral-950/60">
-        <div class="flex items-center gap-3">
-          <div class={`w-10 h-10 rounded-xl flex items-center justify-center shadow-lg ${licenseManager.isLicensed ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-amber-500/20 text-amber-400 border border-amber-500/30'}`}>
+      <!-- Header (Fixed) -->
+      <div class="p-4 sm:p-5 border-b border-neutral-800 flex items-center justify-between bg-neutral-950/60 shrink-0">
+        <div class="flex items-center gap-3 min-w-0">
+          <div class={`w-9 h-9 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center shadow-lg shrink-0 ${licenseManager.isLicensed ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-amber-500/20 text-amber-400 border border-amber-500/30'}`}>
             {#if licenseManager.isLicensed}
               <ShieldCheck class="w-5 h-5" />
             {:else}
               <Lock class="w-5 h-5" />
             {/if}
           </div>
-          <div>
-            <div class="flex items-center gap-2">
-              <h2 class="text-sm font-bold text-neutral-100">Aktivasi Lisensi Beras Visualizer</h2>
+          <div class="min-w-0">
+            <div class="flex items-center gap-2 flex-wrap">
+              <h2 class="text-xs sm:text-sm font-bold text-neutral-100 truncate">Aktivasi Lisensi Beras Visualizer</h2>
               {#if licenseManager.isLicensed}
-                <span class="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 font-semibold uppercase tracking-wider">
+                <span class="text-[9px] sm:text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 font-semibold uppercase tracking-wider">
                   PRO Active
                 </span>
               {:else}
-                <span class="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-400 border border-amber-500/30 font-semibold uppercase tracking-wider">
+                <span class="text-[9px] sm:text-[10px] px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-400 border border-amber-500/30 font-semibold uppercase tracking-wider">
                   Free Edition
                 </span>
               {/if}
             </div>
-            <p class="text-[11px] text-neutral-400 mt-0.5">
+            <p class="text-[10px] sm:text-[11px] text-neutral-400 mt-0.5 truncate">
               {licenseManager.isLicensed ? 'Aplikasi berlisensi penuh. Watermark bebas 100%.' : 'Free use menyertakan watermark acak saat render video.'}
             </p>
           </div>
@@ -138,17 +138,17 @@
         <button 
           type="button"
           onclick={close}
-          class="p-1.5 rounded-lg text-neutral-400 hover:text-neutral-200 hover:bg-neutral-800 transition-colors cursor-pointer"
+          class="p-1.5 rounded-lg text-neutral-400 hover:text-neutral-200 hover:bg-neutral-800 transition-colors cursor-pointer shrink-0 ml-2"
         >
           <X class="w-4 h-4" />
         </button>
       </div>
 
-      <!-- Content -->
-      <div class="p-6 space-y-5">
+      <!-- Content (Scrollable) -->
+      <div class="p-4 sm:p-6 space-y-4 sm:space-y-5 flex-1 overflow-y-auto min-h-0">
         
         {#if successMessage}
-          <div class="p-3.5 bg-emerald-950/60 border border-emerald-800/80 rounded-xl text-xs text-emerald-300 flex items-center gap-2.5">
+          <div class="p-3 bg-emerald-950/60 border border-emerald-800/80 rounded-xl text-xs text-emerald-300 flex items-center gap-2.5">
             <Check class="w-4 h-4 text-emerald-400 shrink-0" />
             <span>{successMessage}</span>
           </div>
@@ -306,13 +306,13 @@
 
       </div>
 
-      <!-- Footer -->
-      <div class="p-4 bg-neutral-950/80 border-t border-neutral-800 flex items-center justify-between text-[11px] text-neutral-500">
-        <span>Lisensi berlaku selamanya untuk 1 perangkat HWID</span>
+      <!-- Footer (Fixed) -->
+      <div class="p-3.5 sm:p-4 bg-neutral-950/80 border-t border-neutral-800 flex items-center justify-between text-[11px] text-neutral-500 shrink-0">
+        <span class="truncate">Lisensi berlaku selamanya untuk 1 perangkat HWID</span>
         <button 
           type="button"
           onclick={close}
-          class="px-3 py-1 rounded-lg bg-neutral-800 hover:bg-neutral-700 text-neutral-300 transition-colors cursor-pointer"
+          class="px-3.5 py-1.5 rounded-lg bg-neutral-800 hover:bg-neutral-700 text-neutral-300 font-medium transition-colors cursor-pointer ml-2 shrink-0"
         >
           Tutup
         </button>
