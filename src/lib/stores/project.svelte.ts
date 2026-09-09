@@ -1,4 +1,4 @@
-import type { ProjectConfig, AudioTrackItem, TextOverlayItem } from '../types/project';
+import type { ProjectConfig, AudioTrackItem, TextOverlayItem, SpectrumConfig } from '../types/project';
 import { db } from '../db/database';
 import { AudioAnalyzer } from '../audio/analyzer';
 import { backgroundManager } from '../../features/backdrop';
@@ -96,6 +96,8 @@ const DEFAULT_PROJECT: ProjectConfig = {
       beatSensitivity: 1.0,
     },
     spectrum: {
+      id: 'spectrum-default',
+      name: 'Spectrum 1',
       enabled: true,
       style: 'circular',
       barCount: 64,
@@ -111,6 +113,26 @@ const DEFAULT_PROJECT: ProjectConfig = {
       y: 0.5,
       scale: 1.0,
     },
+    spectrums: [
+      {
+        id: 'spectrum-default',
+        name: 'Spectrum 1',
+        enabled: true,
+        style: 'circular',
+        barCount: 64,
+        color: '#38bdf8',
+        secondaryColor: '#ec4899',
+        height: 120,
+        radius: 140,
+        opacity: 0.9,
+        mirror: false,
+        followBeat: true,
+        beatSensitivity: 1.2,
+        x: 0.5,
+        y: 0.5,
+        scale: 1.0,
+      }
+    ],
     images: [],
     videos: [],
     texts: [],
@@ -152,6 +174,7 @@ const DEFAULT_PROJECT: ProjectConfig = {
       color: '#e2e8f0',
       highlightColor: '#38bdf8',
       position: 'bottom',
+      alignment: 'center',
       x: 0.5,
       y: 0.85,
       animation: 'none',
@@ -414,6 +437,61 @@ class ProjectState {
     this.saveToDB();
   }
 
+  addSpectrum() {
+    if (!this.project.overlays.spectrums) {
+      this.project.overlays.spectrums = [{ ...this.project.overlays.spectrum }];
+    }
+    const idx = this.project.overlays.spectrums.length + 1;
+    const newSpectrum: SpectrumConfig = {
+      ...structuredClone(DEFAULT_PROJECT.overlays.spectrum),
+      id: 'spectrum-' + Math.random().toString(36).substring(2, 9),
+      name: `Spectrum ${idx}`,
+      color: idx % 2 === 0 ? '#ec4899' : '#38bdf8',
+      secondaryColor: idx % 2 === 0 ? '#38bdf8' : '#a855f7',
+      y: Math.min(0.85, 0.4 + (idx - 1) * 0.15),
+    };
+    this.project.overlays.spectrums.push(newSpectrum);
+    this.syncActiveSpectrum();
+    this.saveToDB();
+    return newSpectrum;
+  }
+
+  duplicateSpectrum(spectrumId: string) {
+    if (!this.project.overlays.spectrums) {
+      this.project.overlays.spectrums = [{ ...this.project.overlays.spectrum }];
+    }
+    const target = this.project.overlays.spectrums.find(s => s.id === spectrumId);
+    if (!target) return;
+    const idx = this.project.overlays.spectrums.length + 1;
+    const clone: SpectrumConfig = {
+      ...structuredClone(target),
+      id: 'spectrum-' + Math.random().toString(36).substring(2, 9),
+      name: `${target.name || 'Spectrum'} (Copy)`,
+      y: Math.min(0.9, target.y + 0.05),
+    };
+    this.project.overlays.spectrums.push(clone);
+    this.syncActiveSpectrum();
+    this.saveToDB();
+    return clone;
+  }
+
+  removeSpectrum(spectrumId: string) {
+    if (!this.project.overlays.spectrums) return;
+    // Always keep at least 1 spectrum
+    if (this.project.overlays.spectrums.length <= 1) {
+      return;
+    }
+    this.project.overlays.spectrums = this.project.overlays.spectrums.filter(s => s.id !== spectrumId);
+    this.syncActiveSpectrum();
+    this.saveToDB();
+  }
+
+  syncActiveSpectrum() {
+    if (this.project.overlays.spectrums && this.project.overlays.spectrums.length > 0) {
+      this.project.overlays.spectrum = this.project.overlays.spectrums[0];
+    }
+  }
+
   addTextOverlay() {
     if (!this.project.overlays.texts) {
       this.project.overlays.texts = [];
@@ -501,6 +579,17 @@ class ProjectState {
               ...DEFAULT_PROJECT.overlays.spectrum,
               ...stored.config.overlays?.spectrum,
             },
+            spectrums: Array.isArray(stored.config.overlays?.spectrums) && stored.config.overlays.spectrums.length > 0
+              ? stored.config.overlays.spectrums.map((s, idx) => ({
+                  ...DEFAULT_PROJECT.overlays.spectrum,
+                  ...s,
+                  id: s.id || `spectrum-${idx}-${Date.now()}`,
+                  name: s.name || `Spectrum ${idx + 1}`
+                }))
+              : [{
+                  ...DEFAULT_PROJECT.overlays.spectrum,
+                  ...(stored.config.overlays?.spectrum || {})
+                }],
             images: stored.config.overlays?.images || [],
             videos: stored.config.overlays?.videos || [],
             texts: stored.config.overlays?.texts || [],

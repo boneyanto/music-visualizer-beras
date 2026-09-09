@@ -204,7 +204,13 @@
 
     // 5. Render Particle, Spectrum, Lyrics
     particles.updateAndRender(ctx, projectStore.project.overlays.particle, beatFactor);
-    spectrum.render(ctx, width, height, projectStore.project.overlays.spectrum, currentFreq, beatFactor);
+    if (projectStore.project.overlays.spectrums && projectStore.project.overlays.spectrums.length > 0) {
+      for (let i = 0; i < projectStore.project.overlays.spectrums.length; i++) {
+        spectrum.render(ctx, width, height, projectStore.project.overlays.spectrums[i], currentFreq, beatFactor);
+      }
+    } else if (projectStore.project.overlays.spectrum) {
+      spectrum.render(ctx, width, height, projectStore.project.overlays.spectrum, currentFreq, beatFactor);
+    }
     lyrics.render(
       ctx, 
       width, 

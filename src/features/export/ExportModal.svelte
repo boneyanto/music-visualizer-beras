@@ -422,15 +422,17 @@
           >
             Cancel Render
           </button>
-        {:else if exportedBlob}
-          <button 
-            type="button"
-            onclick={handleDownload}
-            class="px-5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 bg-emerald-500 hover:bg-emerald-400 text-white text-xs font-semibold flex items-center gap-2 shadow-lg shadow-emerald-500/20 transition-all active:scale-95 cursor-pointer"
-          >
-            <Download class="w-4 h-4" />
-            Download Lagi
-          </button>
+        {:else}
+          {#if exportedBlob}
+            <button 
+              type="button"
+              onclick={handleDownload}
+              class="px-5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 bg-emerald-500 hover:bg-emerald-400 text-white text-xs font-semibold flex items-center gap-2 shadow-lg shadow-emerald-500/20 transition-all active:scale-95 cursor-pointer"
+            >
+              <Download class="w-4 h-4" />
+              Download Lagi
+            </button>
+          {/if}
           <button 
             type="button"
             onclick={handleStartExport}

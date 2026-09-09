@@ -1,7 +1,7 @@
 <script lang="ts">
   import { projectStore } from '../../lib/stores/project.svelte';
   import { SubtitleService } from './subtitle';
-  import { Sparkles, Languages, FolderOpen, Type, Move, Plus } from '@lucide/svelte';
+  import { Sparkles, Languages, FolderOpen, Type, Move, Plus, AlignLeft, AlignCenter, AlignRight } from '@lucide/svelte';
 
   let { onOpenLyrics }: { onOpenLyrics?: () => void } = $props();
   let sidebarSubtitleInput = $state<HTMLInputElement>();
@@ -175,6 +175,46 @@
       <option value="bounce-word">Bounce on Beat</option>
       <option value="bottom-bar">Classic Bottom Bar</option>
     </select>
+  </div>
+
+  <!-- Text Alignment -->
+  <div>
+    <span class="block text-neutral-400 mb-1.5 font-medium">Text Alignment</span>
+    <div class="grid grid-cols-3 gap-2 bg-neutral-950 p-1 rounded-lg border border-neutral-800">
+      <button 
+        type="button" 
+        onclick={() => {
+          projectStore.project.lyrics.config.alignment = 'left';
+          projectStore.saveToDB();
+        }}
+        class="flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-md text-xs font-medium transition-all {projectStore.project.lyrics.config.alignment === 'left' ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/40' : 'text-neutral-400 hover:text-neutral-200'}"
+      >
+        <AlignLeft class="w-3.5 h-3.5" />
+        Kiri
+      </button>
+      <button 
+        type="button" 
+        onclick={() => {
+          projectStore.project.lyrics.config.alignment = 'center';
+          projectStore.saveToDB();
+        }}
+        class="flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-md text-xs font-medium transition-all {(!projectStore.project.lyrics.config.alignment || projectStore.project.lyrics.config.alignment === 'center') ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/40' : 'text-neutral-400 hover:text-neutral-200'}"
+      >
+        <AlignCenter class="w-3.5 h-3.5" />
+        Tengah
+      </button>
+      <button 
+        type="button" 
+        onclick={() => {
+          projectStore.project.lyrics.config.alignment = 'right';
+          projectStore.saveToDB();
+        }}
+        class="flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-md text-xs font-medium transition-all {projectStore.project.lyrics.config.alignment === 'right' ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/40' : 'text-neutral-400 hover:text-neutral-200'}"
+      >
+        <AlignRight class="w-3.5 h-3.5" />
+        Kanan
+      </button>
+    </div>
   </div>
 
   <!-- Position & Scale -->

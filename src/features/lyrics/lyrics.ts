@@ -119,6 +119,8 @@ export class LyricRenderer {
       ctx.restore();
     };
 
+    const alignment = config.alignment || 'center';
+
     // 1. KARAOKE STYLE (Per-word synced highlighting)
     // Check if activeSeg.words matches activeSeg.text; if not, re-align words
     let words = activeSeg.words;
@@ -136,10 +138,28 @@ export class LyricRenderer {
       }
     }
 
+    // Determine anchor X based on alignment and position
+    // posX is normalized 0..1 (default 0.5 center).
+    // If alignment is left, posX defines the left starting edge.
+    // If alignment is right, posX defines the right bounding edge.
+    // If alignment is center, posX defines the center line.
+    let anchorX = posX;
+    if (alignment === 'left') {
+      // If user hasn't nudged posX from default center (0.45..0.55), default to clean left margin
+      if (Math.abs(config.x - 0.5) < 0.05) {
+        anchorX = width * 0.10;
+      }
+    } else if (alignment === 'right') {
+      // If user hasn't nudged posX from default center (0.45..0.55), default to clean right margin
+      if (Math.abs(config.x - 0.5) < 0.05) {
+        anchorX = width * 0.90;
+      }
+    }
+
     if (style === 'karaoke' && words && words.length > 0) {
       const totalText = words.map((w) => w.word).join(' ');
       const totalWidth = ctx.measureText(totalText).width;
-      let currentDrawX = posX - totalWidth / 2;
+      let currentDrawX = alignment === 'left' ? anchorX : (alignment === 'right' ? anchorX - totalWidth : anchorX - totalWidth / 2);
 
       ctx.textAlign = 'left';
 
@@ -186,9 +206,9 @@ export class LyricRenderer {
 
       ctx.save();
       ctx.globalAlpha = alpha;
-      ctx.textAlign = 'center';
+      ctx.textAlign = alignment;
       ctx.fillStyle = config.highlightColor || config.color || '#ffffff';
-      renderTextWithEffects(activeSeg.text, posX, posY, true);
+      renderTextWithEffects(activeSeg.text, anchorX, posY, true);
       ctx.restore();
     }
     // 3. TYPEWRITER STYLE
@@ -198,9 +218,9 @@ export class LyricRenderer {
       const visibleText = fullText.slice(0, charCount);
 
       ctx.save();
-      ctx.textAlign = 'center';
+      ctx.textAlign = alignment;
       ctx.fillStyle = config.highlightColor || config.color || '#ffffff';
-      renderTextWithEffects(visibleText, posX, posY, false);
+      renderTextWithEffects(visibleText, anchorX, posY, false);
       ctx.restore();
     }
     // 4. BOUNCE-WORD / BEAT BOUNCE STYLE
@@ -209,9 +229,9 @@ export class LyricRenderer {
       const scale = 1.0 + (config.followBeat ? (beatFactor - 1.0) * 0.25 : Math.sin(currentTime * 5) * 0.08);
 
       ctx.save();
-      ctx.translate(posX, posY + bounce);
+      ctx.translate(anchorX, posY + bounce);
       ctx.scale(scale, scale);
-      ctx.textAlign = 'center';
+      ctx.textAlign = alignment;
       ctx.fillStyle = config.highlightColor || config.color || '#38bdf8';
       renderTextWithEffects(activeSeg.text, 0, 0, true);
       ctx.restore();
@@ -219,7 +239,6 @@ export class LyricRenderer {
     // 5. BOTTOM-BAR / CLASSIC SUBTITLE STYLE
     else if (style === 'bottom-bar') {
       ctx.save();
-      ctx.textAlign = 'center';
       const textMetrics = ctx.measureText(activeSeg.text);
       const textWidth = textMetrics.width;
       const padX = 28 * scaleFactor;
@@ -227,12 +246,20 @@ export class LyricRenderer {
       const barHeight = finalFontSize + padY * 2;
       const barWidth = textWidth + padX * 2;
 
-      // Draw rounded translucent backdrop
+      // Draw rounded translucent backdrop according to alignment
       ctx.fillStyle = 'rgba(10, 10, 15, 0.78)';
       ctx.strokeStyle = 'rgba(56, 189, 248, 0.4)';
       ctx.lineWidth = 1.5 * scaleFactor;
       
-      const rx = posX - barWidth / 2;
+      let rx = anchorX - barWidth / 2;
+      let textX = anchorX;
+      if (alignment === 'left') {
+        rx = anchorX - padX;
+        textX = anchorX;
+      } else if (alignment === 'right') {
+        rx = anchorX - textWidth - padX;
+        textX = anchorX;
+      }
       const ry = posY - barHeight / 2;
       const radius = 12 * scaleFactor;
 
@@ -242,15 +269,16 @@ export class LyricRenderer {
       ctx.stroke();
 
       // Text inside bar
+      ctx.textAlign = alignment;
       ctx.fillStyle = config.highlightColor || config.color || '#ffffff';
-      renderTextWithEffects(activeSeg.text, posX, posY, false);
+      renderTextWithEffects(activeSeg.text, textX, posY, false);
       ctx.restore();
     }
     // DEFAULT FALLBACK
     else {
-      ctx.textAlign = 'center';
+      ctx.textAlign = alignment;
       ctx.fillStyle = config.color || '#ffffff';
-      renderTextWithEffects(activeSeg.text, posX, posY, false);
+      renderTextWithEffects(activeSeg.text, anchorX, posY, false);
     }
 
     ctx.restore();

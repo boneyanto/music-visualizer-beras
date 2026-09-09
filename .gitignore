@@ -37,3 +37,12 @@ ecosystem.config.json
 skills-lock.json
 bench.html
 run_bench.mjs
+.gemini
+.codegraph
+.codex
+.cursor
+.kiro
+.mcp.json
+AGENTS.md
+GEMINI.md
+opencode.jsonc

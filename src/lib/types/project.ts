@@ -24,7 +24,30 @@ export interface BackgroundConfig {
   beatSensitivity: number;
 }
 
-export type ParticlePreset = 'floating-dust' | 'confetti' | 'bokeh' | 'snow' | 'sparks';
+export type ParticlePreset = 
+  | 'floating-dust' 
+  | 'confetti' 
+  | 'bokeh' 
+  | 'snow' 
+  | 'sparks'
+  | 'Bintik (Dust)'
+  | 'Sparkles'
+  | 'Stars'
+  | 'Gentle Snow'
+  | 'Salju'
+  | 'Asap'
+  | 'Percikan Api'
+  | 'Kabut'
+  | 'Hujan Neon'
+  | 'Confetti'
+  | 'NCS Particles'
+  | 'Particles Rise'
+  | 'Particle Burst'
+  | 'Vortex Particles'
+  | 'Meteor Shower'
+  | 'Orbit Dust'
+  | 'Galaxy Dust'
+  | 'Beat Spark';
 
 export interface ParticleConfig {
   enabled: boolean;
@@ -40,6 +63,7 @@ export interface ParticleConfig {
 }
 
 export type SpectrumStyle = 
+  // Legacy styles
   | 'bars' 
   | 'waveform' 
   | 'circular' 
@@ -49,9 +73,112 @@ export type SpectrumStyle =
   | 'double-circular' 
   | 'digital-eq' 
   | 'dots-ring' 
-  | 'pulse-rings';
+  | 'pulse-rings'
+  // Extended Styles List (96 styles)
+  | 'Bars Round'
+  | 'Bars Dense'
+  | 'Octave Bars'
+  | 'LED Classic'
+  | 'LED Prism'
+  | 'LED Mirror'
+  | 'Lumi Bars'
+  | 'Outline'
+  | 'Alpha Bars'
+  | 'Radial'
+  | 'Radial Spin'
+  | 'Radial Invert'
+  | 'Radial Still'
+  | 'Graph'
+  | 'Graph Thin'
+  | 'Mirror Center'
+  | 'Mirror Outer'
+  | 'Dual Vertical'
+  | 'Dual Horizontal'
+  | 'Dual Overlay'
+  | 'Bar Level Color'
+  | 'Bar Index Color'
+  | 'Mel Scale'
+  | 'Bark Scale'
+  | 'Discrete FFT'
+  | 'Reflex Floor'
+  | 'Fade Peaks'
+  | 'A-Weight'
+  | 'NCS Style'
+  | 'NCS Radial'
+  | 'NCS Pulse'
+  | 'NCS Classic'
+  | 'NCS Mirror'
+  | 'Spiral'
+  | 'Galaxy Spiral'
+  | 'Spiral Tunnel'
+  | 'DNA Helix'
+  | 'Vortex'
+  | 'Orbit Rings'
+  | 'Jonten NFC'
+  | 'Jonten Ring'
+  | 'Jonten Spark'
+  | 'Neon Pulse'
+  | 'Api Bars'
+  | 'Api Radial'
+  | 'Asap Wave'
+  | 'Plasma Ring'
+  | 'Starburst'
+  | 'Ripple Waves'
+  | 'Aurora'
+  | 'Radar Sweep'
+  | 'Kaleidoscope'
+  | 'Wave Mirror'
+  | 'Deep Tunnel'
+  | 'Hex Pulse'
+  | 'Lissajous'
+  | 'Spectrum Arc'
+  | 'Neon Flower'
+  | 'Warp Speed'
+  | 'Diamond Lattice'
+  | 'Cyber Grid'
+  | 'Bars Rainbow'
+  | 'Bars Prism'
+  | 'Bars Neon'
+  | 'Bars NCS'
+  | 'Bars Galaxy'
+  | 'Bars Thin'
+  | 'Bars Fat'
+  | 'Bars Peak Neon'
+  | 'LED Rainbow'
+  | 'LED Neon'
+  | 'LED Fire'
+  | 'LED NCS'
+  | 'LED Galaxy'
+  | 'Radial NCS'
+  | 'Radial Prism'
+  | 'Radial Galaxy'
+  | 'Radial Fire'
+  | 'Radial Magenta'
+  | 'Radial Dual'
+  | 'Radial LED'
+  | 'Radial Outline'
+  | 'Graph Neon'
+  | 'Graph NCS'
+  | 'Graph Fire'
+  | 'Graph Mirror'
+  | 'Dual Neon'
+  | 'Dual NCS'
+  | 'Mirror Neon'
+  | 'Mirror Galaxy'
+  | 'Lumi Neon'
+  | 'Lumi Galaxy'
+  | 'Outline Neon'
+  | 'Outline NCS'
+  | 'Alpha Neon'
+  | 'Alpha Galaxy'
+  | 'Reflex Neon'
+  | 'Reflex Fire'
+  | 'Octave Neon'
+  | 'Octave NCS';
 
 export interface SpectrumConfig {
+  id?: string;
+  name?: string;
   enabled: boolean;
   style: SpectrumStyle;
   barCount: number;
@@ -99,6 +226,7 @@ export interface LyricConfig {
   color: string;
   highlightColor: string;
   position: 'custom' | 'top' | 'center' | 'bottom';
+  alignment?: 'left' | 'center' | 'right';
   x: number;
   y: number;
   animation?: OverlayAnimationType;
@@ -260,6 +388,7 @@ export interface ProjectConfig {
   overlays: {
     particle: ParticleConfig;
     spectrum: SpectrumConfig;
+    spectrums?: SpectrumConfig[];
     images: ImageOverlayItem[];
     videos: VideoOverlayItem[];
     texts: TextOverlayItem[];

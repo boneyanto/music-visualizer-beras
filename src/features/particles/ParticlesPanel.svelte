@@ -20,11 +20,29 @@
       onchange={() => projectStore.saveToDB()}
       class="w-full bg-neutral-950 border border-neutral-800 rounded-lg p-2 text-neutral-200 focus:border-cyan-500 outline-none cursor-pointer"
     >
-      <option value="floating-dust">Floating Dust</option>
-      <option value="confetti">Confetti</option>
+      <option value="Bintik (Dust)">Bintik (Dust)</option>
+      <option value="Sparkles">Sparkles</option>
+      <option value="Stars">Stars</option>
+      <option value="Gentle Snow">Gentle Snow</option>
+      <option value="Salju">Salju</option>
+      <option value="Asap">Asap</option>
+      <option value="Percikan Api">Percikan Api</option>
+      <option value="Kabut">Kabut</option>
+      <option value="Hujan Neon">Hujan Neon</option>
+      <option value="Confetti">Confetti</option>
+      <option value="NCS Particles">NCS Particles</option>
+      <option value="Particles Rise">Particles Rise</option>
+      <option value="Particle Burst">Particle Burst</option>
+      <option value="Vortex Particles">Vortex Particles</option>
+      <option value="Meteor Shower">Meteor Shower</option>
+      <option value="Orbit Dust">Orbit Dust</option>
+      <option value="Galaxy Dust">Galaxy Dust</option>
+      <option value="Beat Spark">Beat Spark</option>
+      <!-- Fallback / Legacy -->
+      <option value="floating-dust">Floating Dust (Legacy)</option>
       <option value="bokeh">Bokeh Glow</option>
-      <option value="snow">Snow</option>
-      <option value="sparks">Beat Sparks</option>
+      <option value="snow">Snow (Legacy)</option>
+      <option value="sparks">Beat Sparks (Legacy)</option>
     </select>
   </div>
 

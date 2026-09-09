@@ -52,35 +52,93 @@ export class ParticleSystem {
     let vRot = (Math.random() - 0.5) * 0.08;
     let shape: Particle['shape'] = 'circle';
 
-    if (config.preset === 'bokeh') {
+    const preset = config.preset;
+
+    if (preset === 'bokeh') {
       size = Math.max(8 * scaleFactor, (Math.random() * 1.5 + 0.8) * baseSize * 2.5);
       vx = (Math.random() - 0.5) * config.speed * 0.6 * scaleFactor;
       vy = -Math.abs((Math.random() * 0.6 + 0.2) * config.speed * scaleFactor);
       color = config.color && config.color !== '#ffffff' 
         ? config.color 
         : BOKEH_COLORS[Math.floor(Math.random() * BOKEH_COLORS.length)];
-    } else if (config.preset === 'confetti') {
+    } else if (preset === 'confetti' || preset === 'Confetti') {
       size = Math.max(3 * scaleFactor, (Math.random() * 0.8 + 0.6) * baseSize * 1.5);
       vx = (Math.random() - 0.5) * config.speed * 2.5 * scaleFactor;
       vy = (Math.random() * 1.8 + 0.8) * config.speed * scaleFactor;
       vRot = (Math.random() - 0.5) * 0.15;
       color = CONFETTI_COLORS[Math.floor(Math.random() * CONFETTI_COLORS.length)];
       shape = 'square';
-    } else if (config.preset === 'snow') {
+    } else if (preset === 'snow' || preset === 'Salju') {
       size = Math.max(1.5 * scaleFactor, (Math.random() * 0.9 + 0.3) * baseSize);
       vx = Math.sin(Math.random() * Math.PI * 2) * config.speed * 0.7 * scaleFactor;
       vy = (Math.random() * 1.2 + 0.8) * config.speed * scaleFactor;
       color = config.color || '#ffffff';
-    } else if (config.preset === 'sparks') {
+    } else if (preset === 'Gentle Snow') {
+      size = Math.max(1.2 * scaleFactor, (Math.random() * 0.6 + 0.2) * baseSize);
+      vx = (Math.random() - 0.5) * config.speed * 0.4 * scaleFactor;
+      vy = (Math.random() * 0.6 + 0.4) * config.speed * scaleFactor;
+      color = config.color || '#e0f2fe';
+    } else if (preset === 'sparks' || preset === 'Percikan Api' || preset === 'Beat Spark') {
       size = Math.max(1.5 * scaleFactor, (Math.random() * 0.7 + 0.3) * baseSize);
-      vx = (Math.random() - 0.5) * config.speed * 4 * scaleFactor;
-      vy = -Math.abs((Math.random() * 3 + 1) * config.speed * scaleFactor);
+      vx = (Math.random() - 0.5) * config.speed * 4.5 * scaleFactor;
+      vy = -Math.abs((Math.random() * 3.5 + 1.2) * config.speed * scaleFactor);
       color = config.color && config.color !== '#ffffff'
         ? config.color
         : SPARK_COLORS[Math.floor(Math.random() * SPARK_COLORS.length)];
       shape = 'star';
+    } else if (preset === 'Sparkles') {
+      size = Math.max(2 * scaleFactor, (Math.random() * 0.9 + 0.3) * baseSize);
+      vx = (Math.random() - 0.5) * config.speed * 1.2 * scaleFactor;
+      vy = (Math.random() - 0.5) * config.speed * 1.2 * scaleFactor;
+      color = config.color && config.color !== '#ffffff' ? config.color : '#fef08a';
+      shape = 'star';
+    } else if (preset === 'Stars') {
+      size = Math.max(1.5 * scaleFactor, (Math.random() * 0.8 + 0.2) * baseSize);
+      vx = (Math.random() - 0.5) * config.speed * 0.2 * scaleFactor;
+      vy = (Math.random() - 0.5) * config.speed * 0.2 * scaleFactor;
+      color = config.color || '#ffffff';
+      shape = 'star';
+    } else if (preset === 'Asap' || preset === 'Kabut') {
+      size = Math.max(15 * scaleFactor, (Math.random() * 2 + 1) * baseSize * 3);
+      vx = (Math.random() - 0.5) * config.speed * 0.5 * scaleFactor;
+      vy = -Math.abs((Math.random() * 0.8 + 0.2) * config.speed * scaleFactor);
+      color = config.color && config.color !== '#ffffff' ? config.color : '#94a3b8';
+    } else if (preset === 'Hujan Neon') {
+      size = Math.max(2 * scaleFactor, (Math.random() * 0.6 + 0.4) * baseSize);
+      vx = (Math.random() - 0.2) * config.speed * 0.5 * scaleFactor;
+      vy = (Math.random() * 3.5 + 4.0) * config.speed * scaleFactor;
+      color = config.color && config.color !== '#ffffff' ? config.color : '#38bdf8';
+    } else if (preset === 'NCS Particles') {
+      size = Math.max(2 * scaleFactor, (Math.random() * 0.8 + 0.3) * baseSize);
+      const angle = Math.random() * Math.PI * 2;
+      const spd = (Math.random() * 2 + 1) * config.speed * scaleFactor;
+      vx = Math.cos(angle) * spd;
+      vy = Math.sin(angle) * spd;
+      color = config.color && config.color !== '#ffffff' ? config.color : '#38bdf8';
+    } else if (preset === 'Particles Rise') {
+      size = Math.max(1.5 * scaleFactor, (Math.random() * 0.8 + 0.4) * baseSize);
+      vx = (Math.random() - 0.5) * config.speed * 0.8 * scaleFactor;
+      vy = -Math.abs((Math.random() * 2 + 0.8) * config.speed * scaleFactor);
+      color = config.color || '#ffffff';
+    } else if (preset === 'Particle Burst') {
+      size = Math.max(2 * scaleFactor, (Math.random() * 0.8 + 0.3) * baseSize);
+      const ang = Math.random() * Math.PI * 2;
+      const mag = (Math.random() * 4 + 1.5) * config.speed * scaleFactor;
+      vx = Math.cos(ang) * mag;
+      vy = Math.sin(ang) * mag;
+      color = config.color && config.color !== '#ffffff' ? config.color : '#f43f5e';
+    } else if (preset === 'Vortex Particles' || preset === 'Orbit Dust' || preset === 'Galaxy Dust') {
+      size = Math.max(1.8 * scaleFactor, (Math.random() * 0.8 + 0.3) * baseSize);
+      vx = (Math.random() - 0.5) * config.speed * scaleFactor;
+      vy = (Math.random() - 0.5) * config.speed * scaleFactor;
+      color = config.color && config.color !== '#ffffff' ? config.color : '#a855f7';
+    } else if (preset === 'Meteor Shower') {
+      size = Math.max(2 * scaleFactor, (Math.random() * 0.7 + 0.3) * baseSize);
+      vx = -Math.abs((Math.random() * 2.5 + 2) * config.speed * scaleFactor);
+      vy = (Math.random() * 2.5 + 2) * config.speed * scaleFactor;
+      color = config.color && config.color !== '#ffffff' ? config.color : '#fbbf24';
     } else {
-      // floating-dust
+      // floating-dust, Bintik (Dust)
       if (config.gravity === 'up') vy = -Math.abs(vy) - 0.5 * config.speed * scaleFactor;
       else if (config.gravity === 'down') vy = Math.abs(vy) + 0.5 * config.speed * scaleFactor;
     }
@@ -117,25 +175,178 @@ export class ParticleSystem {
 
     ctx.save();
 
-    switch (config.preset) {
-      case 'bokeh':
-        this.renderBokeh(ctx, config, beatFactor, scaleFactor);
-        break;
-      case 'confetti':
-        this.renderConfetti(ctx, config, beatFactor, scaleFactor);
-        break;
-      case 'snow':
-        this.renderSnow(ctx, config, beatFactor, scaleFactor);
-        break;
-      case 'sparks':
-        this.renderSparks(ctx, config, beatFactor, scaleFactor);
-        break;
-      default:
-        this.renderFloatingDust(ctx, config, beatFactor, scaleFactor);
-        break;
+    const p = config.preset;
+
+    if (p === 'bokeh') {
+      this.renderBokeh(ctx, config, beatFactor, scaleFactor);
+    } else if (p === 'confetti' || p === 'Confetti') {
+      this.renderConfetti(ctx, config, beatFactor, scaleFactor);
+    } else if (p === 'snow' || p === 'Salju' || p === 'Gentle Snow') {
+      this.renderSnow(ctx, config, beatFactor, scaleFactor);
+    } else if (p === 'sparks' || p === 'Percikan Api' || p === 'Beat Spark') {
+      this.renderSparks(ctx, config, beatFactor, scaleFactor);
+    } else if (p === 'Hujan Neon') {
+      this.renderNeonRain(ctx, config, beatFactor, scaleFactor);
+    } else if (p === 'Meteor Shower') {
+      this.renderMeteor(ctx, config, beatFactor, scaleFactor);
+    } else if (p === 'Asap' || p === 'Kabut') {
+      this.renderSmoke(ctx, config, beatFactor, scaleFactor);
+    } else if (p === 'Vortex Particles' || p === 'Orbit Dust' || p === 'Galaxy Dust') {
+      this.renderVortex(ctx, config, beatFactor, scaleFactor);
+    } else if (p === 'Sparkles' || p === 'Stars') {
+      this.renderSparkles(ctx, config, beatFactor, scaleFactor);
+    } else if (p === 'NCS Particles' || p === 'Particle Burst') {
+      this.renderBurst(ctx, config, beatFactor, scaleFactor);
+    } else {
+      // floating-dust, Bintik (Dust), Particles Rise
+      this.renderFloatingDust(ctx, config, beatFactor, scaleFactor);
     }
 
     ctx.restore();
+  }
+
+  private renderNeonRain(
+    ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
+    config: ParticleConfig,
+    beatFactor: number,
+    scaleFactor: number
+  ) {
+    ctx.strokeStyle = config.color || '#38bdf8';
+    ctx.lineWidth = 1.8 * scaleFactor;
+    for (let i = 0; i < this.particles.length; i++) {
+      const p = this.particles[i];
+      p.y += p.vy * (config.followBeat ? 1 + (beatFactor - 1) * 0.5 : 1.0);
+      p.x += p.vx;
+      if (p.y > this.height + 40 * scaleFactor) {
+        p.y = -40 * scaleFactor;
+        p.x = Math.random() * this.width;
+      }
+      ctx.globalAlpha = p.alpha * (config.opacity ?? 0.8);
+      ctx.beginPath();
+      ctx.moveTo(p.x, p.y);
+      ctx.lineTo(p.x - p.vx * 2, p.y + p.size * 5 * scaleFactor);
+      ctx.stroke();
+    }
+  }
+
+  private renderMeteor(
+    ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
+    config: ParticleConfig,
+    beatFactor: number,
+    scaleFactor: number
+  ) {
+    ctx.strokeStyle = config.color || '#fbbf24';
+    ctx.lineWidth = 2 * scaleFactor;
+    for (let i = 0; i < this.particles.length; i++) {
+      const p = this.particles[i];
+      p.x += p.vx * (config.followBeat ? 1 + (beatFactor - 1) * 0.7 : 1.0);
+      p.y += p.vy * (config.followBeat ? 1 + (beatFactor - 1) * 0.7 : 1.0);
+      if (p.x < -100 * scaleFactor || p.y > this.height + 100 * scaleFactor) {
+        p.x = this.width + Math.random() * 200 * scaleFactor;
+        p.y = -Math.random() * 100 * scaleFactor;
+      }
+      ctx.globalAlpha = p.alpha * (config.opacity ?? 0.8);
+      ctx.beginPath();
+      ctx.moveTo(p.x, p.y);
+      ctx.lineTo(p.x - p.vx * 3.5, p.y - p.vy * 3.5);
+      ctx.stroke();
+    }
+  }
+
+  private renderSmoke(
+    ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
+    config: ParticleConfig,
+    beatFactor: number,
+    scaleFactor: number
+  ) {
+    ctx.fillStyle = config.color || '#94a3b8';
+    for (let i = 0; i < this.particles.length; i++) {
+      const p = this.particles[i];
+      p.x += p.vx * 0.8;
+      p.y += p.vy * (config.followBeat ? 1 + (beatFactor - 1) * 0.3 : 1.0);
+      if (p.y < -100 * scaleFactor) {
+        p.y = this.height + 50 * scaleFactor;
+        p.x = Math.random() * this.width;
+      }
+      const sz = p.baseSize * (config.followBeat ? 1 + (beatFactor - 1) * 0.2 : 1.0);
+      ctx.globalAlpha = p.alpha * (config.opacity ?? 0.4) * 0.3;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, sz, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  private renderVortex(
+    ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
+    config: ParticleConfig,
+    beatFactor: number,
+    scaleFactor: number
+  ) {
+    const cx = this.width / 2;
+    const cy = this.height / 2;
+    ctx.fillStyle = config.color || '#a855f7';
+    for (let i = 0; i < this.particles.length; i++) {
+      const p = this.particles[i];
+      const dx = p.x - cx;
+      const dy = p.y - cy;
+      const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+      const angle = Math.atan2(dy, dx) + (0.015 * config.speed) * (config.followBeat ? 1 + (beatFactor - 1) * 0.5 : 1.0);
+      const newDist = dist > 40 * scaleFactor ? dist - 0.4 * config.speed * scaleFactor : Math.random() * (this.width * 0.45);
+      p.x = cx + Math.cos(angle) * newDist;
+      p.y = cy + Math.sin(angle) * newDist;
+      ctx.globalAlpha = p.alpha * (config.opacity ?? 0.8);
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.baseSize * (config.followBeat ? 1 + (beatFactor - 1) * 0.3 : 1.0), 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  private renderSparkles(
+    ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
+    config: ParticleConfig,
+    beatFactor: number,
+    scaleFactor: number
+  ) {
+    ctx.fillStyle = config.color || '#fef08a';
+    for (let i = 0; i < this.particles.length; i++) {
+      const p = this.particles[i];
+      p.rotation += 0.05;
+      p.x += p.vx;
+      p.y += p.vy;
+      if (p.x < 0) p.x = this.width;
+      if (p.x > this.width) p.x = 0;
+      if (p.y < 0) p.y = this.height;
+      if (p.y > this.height) p.y = 0;
+      const sz = p.baseSize * (1 + Math.sin(p.rotation) * 0.4) * (config.followBeat ? 1 + (beatFactor - 1) * 0.4 : 1.0);
+      ctx.globalAlpha = p.alpha * (config.opacity ?? 0.8);
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, sz, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  private renderBurst(
+    ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
+    config: ParticleConfig,
+    beatFactor: number,
+    scaleFactor: number
+  ) {
+    const cx = this.width / 2;
+    const cy = this.height / 2;
+    ctx.fillStyle = config.color || '#38bdf8';
+    for (let i = 0; i < this.particles.length; i++) {
+      const p = this.particles[i];
+      p.x += p.vx * (config.followBeat ? 1 + (beatFactor - 1) * 0.8 : 1.0);
+      p.y += p.vy * (config.followBeat ? 1 + (beatFactor - 1) * 0.8 : 1.0);
+      if (p.x < 0 || p.x > this.width || p.y < 0 || p.y > this.height) {
+        p.x = cx + (Math.random() - 0.5) * 50 * scaleFactor;
+        p.y = cy + (Math.random() - 0.5) * 50 * scaleFactor;
+      }
+      ctx.globalAlpha = p.alpha * (config.opacity ?? 0.85);
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.baseSize * (config.followBeat ? 1 + (beatFactor - 1) * 0.4 : 1.0), 0, Math.PI * 2);
+      ctx.fill();
+    }
   }
 
   private renderBokeh(
