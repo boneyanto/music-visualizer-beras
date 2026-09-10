@@ -53,8 +53,8 @@ Tanggung jawab:
    - Mengambil PCM `Float32Array` dari setiap channel audio (`audioRawData`) dan mendaftarkannya ke array `transferables` (zero-copy memory transfer).
 2. **Pre-ekstraksi Video Overlay & Background Video (`extractFramesFromVideo`)**:
    - Menggunakan hardware-accelerated `HTMLVideoElement` di main thread untuk men-decode video stiker/latar.
-   - Membatasi durasi loop maksimal 20 detik pada 24 FPS (maksimal 480 frame `ImageBitmap`).
-   - Resolusi dibatasi maksimal 720p (1280x720) untuk mencegah memory bloat di GPU/RAM.
+   - **Background Video**: Dibatasi resolusi **540p** ($960 \times 540$), durasi loop **8 detik** pada **16 FPS** (~128 frame). Menghemat VRAM dari 4 GB menjadi hanya $\sim 250\text{ MB}$ tanpa perbedaan kualitas visual yang tampak pada latar ambient.
+   - **Video Overlay (Stickers/Chroma)**: Dibatasi resolusi **720p** ($1280 \times 720$), durasi loop **8 detik** pada **20 FPS** (~160 frame) menjaga ketajaman grafis stiker.
    - Frame disimpan sebagai `ImageBitmap[]` dan dipindahkan ke Worker via `transferables`.
 3. **Zero-Copy Flat Frequency Buffer**:
    - Mengirim `projectStore.flatFrequencyBuffer` (berukuran ~18.9 MB untuk 30 menit audio) langsung ke Worker tanpa melewati `$state.snapshot()` agar tidak terjadi memory cloning ratusan ribu array.
