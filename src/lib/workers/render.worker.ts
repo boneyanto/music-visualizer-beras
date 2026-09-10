@@ -245,9 +245,10 @@ self.onmessage = async (e: MessageEvent<RenderRequest | { type: 'CANCEL' }>) => 
     } as any);
 
     // Setup zero-latency ondequeue backpressure (pure microsecond resolution on Mac, buffered on Windows)
+    // Threshold clamped to 6 (Mac) and 3 (Windows) to aggressively drain hardware textures from VRAM
     let queueDrainResolver: (() => void) | null = null;
     videoEncoder.ondequeue = () => {
-      const threshold = isMac ? 8 : 4;
+      const threshold = isMac ? 6 : 3;
       if (queueDrainResolver && videoEncoder.encodeQueueSize <= threshold) {
         const resolve = queueDrainResolver;
         queueDrainResolver = null;
@@ -418,9 +419,9 @@ self.onmessage = async (e: MessageEvent<RenderRequest | { type: 'CANCEL' }>) => 
 
 
         // 8. Platform-optimized GPU Queue Backpressure
-        // VideoToolbox on Apple Silicon reaches peak 7x-9x+ efficiency with a 24-frame depth
-        // Windows iGPU/dGPU is kept safely bounded at 8-10 frames
-        const maxQueue = isMac ? 24 : 8;
+        // VideoToolbox on Apple Silicon reaches peak 7x-9x+ efficiency with a 16-frame depth
+        // Windows iGPU/dGPU is kept safely bounded at 8 frames to prevent memory explosion
+        const maxQueue = isMac ? 16 : 8;
         if (videoEncoder.encodeQueueSize >= maxQueue) {
           await new Promise<void>((resolve) => {
             queueDrainResolver = resolve;
