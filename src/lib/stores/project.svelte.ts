@@ -207,7 +207,8 @@ class ProjectState {
   selectedLayer = $state<string | null>(null);
   audioBuffer = $state<AudioBuffer | null>(null);
   beats = $state<number[]>([]);
-  frequencyFrames = $state<Uint8Array[]>([]);
+  flatFrequencyBuffer: Uint8Array | null = null;
+  frequencyFrames: Uint8Array[] = [];
   frameDuration = $state<number>(0.0116);
   isProcessingAudio = $state<boolean>(false);
   analysisProgress = $state<number>(0);
@@ -216,54 +217,65 @@ class ProjectState {
 
   private trackBuffers = new Map<string, AudioBuffer>();
 
-  async addAudioTrack(file: File) {
+  async addAudioTracks(files: FileList | File[]) {
     this.isProcessingAudio = true;
-    this.analysisProgress = 0.1;
+    this.analysisProgress = 0.05;
     try {
-      const url = URL.createObjectURL(file);
-      const arrayBuffer = await file.arrayBuffer();
-      const tempCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
-      const decodedBuffer = await tempCtx.decodeAudioData(arrayBuffer.slice(0));
-      await tempCtx.close();
+      const fileArray = Array.from(files);
+      const total = fileArray.length;
 
-      const trackId = 'track-' + Math.random().toString(36).substring(2, 9);
-      const newTrack: AudioTrackItem = {
-        id: trackId,
-        name: file.name,
-        fileSize: file.size,
-        duration: decodedBuffer.duration,
-        url,
-        file,
-      };
+      for (let i = 0; i < total; i++) {
+        const file = fileArray[i];
+        this.analysisProgress = 0.05 + (i / total) * 0.4;
+        const url = URL.createObjectURL(file);
+        const arrayBuffer = await file.arrayBuffer();
+        const tempCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+        const decodedBuffer = await tempCtx.decodeAudioData(arrayBuffer.slice(0));
+        await tempCtx.close();
 
-      this.trackBuffers.set(trackId, decodedBuffer);
-
-      // Persist audio file to IndexedDB
-      try {
-        await db.assets.put({
+        const trackId = 'track-' + Math.random().toString(36).substring(2, 9);
+        const newTrack: AudioTrackItem = {
           id: trackId,
-          projectId: this.project.id,
           name: file.name,
-          type: 'audio',
-          blob: file,
-          createdAt: Date.now(),
-        });
-      } catch (err) {
-        console.warn('Could not cache audio in IndexedDB:', err);
+          fileSize: file.size,
+          duration: decodedBuffer.duration,
+          url,
+          file,
+        };
+
+        this.trackBuffers.set(trackId, decodedBuffer);
+
+        try {
+          await db.assets.put({
+            id: trackId,
+            projectId: this.project.id,
+            name: file.name,
+            type: 'audio',
+            blob: file,
+            createdAt: Date.now(),
+          });
+        } catch (err) {
+          console.warn('Could not cache audio in IndexedDB:', err);
+        }
+
+        if (!this.project.audio.tracks) {
+          this.project.audio.tracks = [];
+        }
+        this.project.audio.tracks.push(newTrack);
       }
 
-      if (!this.project.audio.tracks) {
-        this.project.audio.tracks = [];
-      }
-      this.project.audio.tracks.push(newTrack);
-
+      // Rebuild & analyze only ONCE after all files are added (not 12 times!)
       await this.rebuildMergedAudio();
       await this.saveToDB();
     } catch (e: any) {
-      alert('Failed to load audio: ' + e.message);
+      alert('Failed to load audio tracks: ' + e.message);
     } finally {
       this.isProcessingAudio = false;
     }
+  }
+
+  async addAudioTrack(file: File) {
+    await this.addAudioTracks([file]);
   }
 
   async rebuildMergedAudio() {
@@ -305,6 +317,10 @@ class ProjectState {
       this.project.audio.duration = merged.duration;
       this.project.updatedAt = Date.now();
 
+      // Free individual track buffers from memory immediately!
+      // Once merged, trackBuffers are duplicate RAM (saves ~500MB RAM on 12 tracks)
+      this.trackBuffers.clear();
+
       const analysis = await AudioAnalyzer.extractBeatMap(
         merged,
         this.project.audio.beatSensitivity,
@@ -314,6 +330,7 @@ class ProjectState {
       );
       this.beats = analysis.beatMap.beats;
       this.frequencyFrames = analysis.frequencyFrames;
+      this.flatFrequencyBuffer = analysis.flatFrequencyBuffer;
       this.frameDuration = analysis.frameDuration;
     }
   }

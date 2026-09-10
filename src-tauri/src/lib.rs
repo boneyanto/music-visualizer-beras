@@ -34,6 +34,8 @@ fn save_video_chunk(
   file.write_all(&bytes).map_err(|e| e.to_string())?;
 
   if is_last {
+    file.flush().map_err(|e| e.to_string())?;
+
     #[cfg(target_os = "macos")]
     {
       let _ = std::process::Command::new("open").arg("-R").arg(&file_path).spawn();

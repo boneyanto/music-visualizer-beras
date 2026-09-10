@@ -52,8 +52,11 @@ export class VideoOverlayManager {
     this.videoElements.forEach((vid) => {
       if (isPlaying) {
         if (vid.paused) vid.play().catch(() => {});
-        if (Math.abs(vid.currentTime - (currentTime % (vid.duration || 10))) > 0.3) {
-          vid.currentTime = currentTime % (vid.duration || 10);
+        const duration = vid.duration || 10;
+        const targetTime = currentTime % duration;
+        // Only seek if drift exceeds 0.5s to prevent continuous seeking freeze on Windows WebView2
+        if (Math.abs(vid.currentTime - targetTime) > 0.5) {
+          vid.currentTime = targetTime;
         }
       } else {
         if (!vid.paused) vid.pause();
@@ -141,11 +144,14 @@ export class VideoOverlayManager {
     const h = Math.round(drawH);
     if (w <= 0 || h <= 0) return;
 
-    if (!this.tempCanvas || this.tempCanvas.width !== w || this.tempCanvas.height !== h) {
-      this.tempCanvas = typeof OffscreenCanvas !== 'undefined' ? new OffscreenCanvas(w, h) : document.createElement('canvas');
-      this.tempCanvas.width = w;
-      this.tempCanvas.height = h;
-      this.tempCtx = this.tempCanvas.getContext('2d') as any;
+    // Allocate canvas with headroom to prevent continuous GC churn when scaling
+    if (!this.tempCanvas || this.tempCanvas.width < w || this.tempCanvas.height < h) {
+      const targetW = Math.max(w, this.tempCanvas ? this.tempCanvas.width : 512);
+      const targetH = Math.max(h, this.tempCanvas ? this.tempCanvas.height : 512);
+      this.tempCanvas = typeof OffscreenCanvas !== 'undefined' ? new OffscreenCanvas(targetW, targetH) : document.createElement('canvas');
+      this.tempCanvas.width = targetW;
+      this.tempCanvas.height = targetH;
+      this.tempCtx = this.tempCanvas.getContext('2d', { willReadFrequently: true }) as any;
     }
 
     if (!this.tempCtx) return;

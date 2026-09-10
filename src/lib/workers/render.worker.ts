@@ -22,7 +22,8 @@ registerAacEncoder();
 interface RenderRequest {
   type: 'START_RENDER';
   project: ProjectConfig;
-  frequencyFrames: Uint8Array[];
+  frequencyFrames?: Uint8Array[];
+  flatFrequencyBuffer?: Uint8Array;
   beats: number[];
   frameDuration: number;
   audioRawData?: Float32Array[];
@@ -43,7 +44,8 @@ self.onmessage = async (e: MessageEvent<RenderRequest | { type: 'CANCEL' }>) => 
   if (e.data.type === 'START_RENDER') {
     const { 
       project, 
-      frequencyFrames, 
+      frequencyFrames: passedFrequencyFrames, 
+      flatFrequencyBuffer,
       beats, 
       frameDuration, 
       sampleRate, 
@@ -55,6 +57,19 @@ self.onmessage = async (e: MessageEvent<RenderRequest | { type: 'CANCEL' }>) => 
     const { width, height, fps, videoBitrate } = project.exportSettings;
     const duration = project.audio.duration || 10;
     const totalFrames = Math.floor(duration * fps);
+
+    // Fast zero-allocation unpack of frequency frames if flat buffer was transferred
+    let frequencyFrames: Uint8Array[];
+    if (flatFrequencyBuffer && flatFrequencyBuffer.byteLength > 0) {
+      const visualBins = 128;
+      const totalFreqFrames = Math.floor(flatFrequencyBuffer.byteLength / visualBins);
+      frequencyFrames = new Array(totalFreqFrames);
+      for (let i = 0; i < totalFreqFrames; i++) {
+        frequencyFrames[i] = flatFrequencyBuffer.subarray(i * visualBins, (i + 1) * visualBins);
+      }
+    } else {
+      frequencyFrames = passedFrequencyFrames || [];
+    }
 
     // Random watermark seed and jump interval for Free Use (0 cost, pure integer math)
     const watermarkBaseX = Math.floor(0.15 * width + Math.random() * (0.70 * width));
@@ -239,6 +254,17 @@ self.onmessage = async (e: MessageEvent<RenderRequest | { type: 'CANCEL' }>) => 
         resolve();
       }
     };
+
+    // Start concurrent audio encoding in background while video frames render
+    // Since audioRawData is already available, AAC compression runs concurrently without blocking video loop
+    let audioEncodingPromise: Promise<void> | null = null;
+    if (hasAudio && audioSource && e.data.audioRawData) {
+      audioEncodingPromise = encodeAudioTrack(
+        audioSource,
+        e.data.audioRawData,
+        sampleRate || 44100
+      );
+    }
 
     const fallbackFreq = new Uint8Array(128);
     const totalBgItems = bgItems.length;
@@ -432,21 +458,12 @@ self.onmessage = async (e: MessageEvent<RenderRequest | { type: 'CANCEL' }>) => 
         }
       }
 
-      self.postMessage({
-        type: 'STAGE_CHANGE',
-        stage: 'encoding_audio',
-      });
-
       await videoEncoder.flush();
       videoEncoder.close();
 
-      // Encode Audio Track safely via @mediabunny/aac-encoder
-      if (hasAudio && audioSource && e.data.audioRawData) {
-        await encodeAudioTrack(
-          audioSource,
-          e.data.audioRawData,
-          sampleRate || 44100
-        );
+      // Ensure concurrent audio track encoding has finished (already completed during video frames render!)
+      if (audioEncodingPromise) {
+        await audioEncodingPromise;
       }
 
       if (encoderError) {

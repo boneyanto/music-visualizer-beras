@@ -39,9 +39,7 @@
     const target = e.target as HTMLInputElement;
     if (!target.files || target.files.length === 0) return;
 
-    for (let i = 0; i < target.files.length; i++) {
-      await projectStore.addAudioTrack(target.files[i]);
-    }
+    await projectStore.addAudioTracks(target.files);
   }
 
   function handleTimelineClick(e: MouseEvent) {
