@@ -44,9 +44,9 @@
   function renderFrame() {
     if (!canvasRef) return;
 
-    // Liberate 100% of GPU & CPU for export worker while video export is running
+    // Zero-Overhead Render Shutter: Halt requestAnimationFrame completely during export
+    // This removes all UI vsync synchronization locks from Windows DWM / macOS Compositor
     if (videoExporter.isExporting) {
-      animId = requestAnimationFrame(renderFrame);
       return;
     }
 
@@ -256,6 +256,20 @@
       // Touch properties to track reactivity
       texts.forEach(t => `${t.text}-${t.fontFamily}-${t.fontSize}-${t.color}-${t.stroke}-${t.strokeWidth}-${t.strokeColor}-${t.shadow}`);
       textOverlayManager.clearCache();
+    }
+  });
+
+  $effect(() => {
+    // Zero-Overhead Render Shutter: Resume preview rendering when export ends, or pause when export starts
+    if (videoExporter.isExporting) {
+      if (animId) {
+        cancelAnimationFrame(animId);
+        animId = 0;
+      }
+    } else {
+      if (!animId && canvasRef) {
+        animId = requestAnimationFrame(renderFrame);
+      }
     }
   });
 

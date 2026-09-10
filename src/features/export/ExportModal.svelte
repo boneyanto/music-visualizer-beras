@@ -101,7 +101,11 @@
   <!-- svelte-ignore a11y_click_events_have_key_events -->
   <!-- svelte-ignore a11y_no_static_element_interactions -->
   <div 
-    class="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 animate-in fade-in duration-200"
+    class={`fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 transition-colors duration-300 ${
+      videoExporter.isExporting 
+        ? 'bg-black select-none' 
+        : 'bg-black/80 backdrop-blur-sm animate-in fade-in duration-200'
+    }`}
   >
     <div class="bg-neutral-900 border border-neutral-800 rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden flex flex-col max-h-[88vh] text-neutral-100 animate-in zoom-in-95 duration-200">
       
@@ -112,7 +116,14 @@
             <Film class="w-5 h-5 text-white" />
           </div>
           <div>
-            <h2 class="text-sm font-semibold text-neutral-100">Export Video</h2>
+            <div class="flex items-center gap-2">
+              <h2 class="text-sm font-semibold text-neutral-100">Export Video</h2>
+              {#if videoExporter.isExporting}
+                <span class="px-2 py-0.5 rounded-full text-[9px] font-bold bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 flex items-center gap-1">
+                  ⚡ Turbo Shutter Active
+                </span>
+              {/if}
+            </div>
             <p class="text-[10px] sm:text-[11px] text-neutral-400">High performance client-side offline GPU encoding</p>
           </div>
         </div>

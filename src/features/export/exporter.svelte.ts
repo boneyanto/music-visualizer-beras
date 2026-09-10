@@ -45,6 +45,7 @@ export class VideoExporter {
         { type: 'module' }
       );
 
+      let lastUiUpdate = 0;
       this.worker.onmessage = (e: MessageEvent) => {
         const data = e.data;
 
@@ -62,12 +63,18 @@ export class VideoExporter {
             }, 500);
           }
 
-          this.progress = data.progress;
-          this.currentFrame = data.frame;
-          this.totalFrames = data.totalFrames;
-          this.currentFPS = data.currentFPS || 0;
-          this.speedMultiplier = data.speedMultiplier || 1.0;
-          this.etaSeconds = data.etaSeconds || 0;
+          // Throttle reactive UI state update to max once per ~120ms to prevent DOM layout thrashing
+          const now = performance.now();
+          const isCompleteFrame = data.frame >= data.totalFrames;
+          if (isCompleteFrame || now - lastUiUpdate >= 120) {
+            lastUiUpdate = now;
+            this.progress = data.progress;
+            this.currentFrame = data.frame;
+            this.totalFrames = data.totalFrames;
+            this.currentFPS = data.currentFPS || 0;
+            this.speedMultiplier = data.speedMultiplier || 1.0;
+            this.etaSeconds = data.etaSeconds || 0;
+          }
         } else if (data.type === 'COMPLETE') {
           this.stage = 'finalizing';
           this.isExporting = false;
