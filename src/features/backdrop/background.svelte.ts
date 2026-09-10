@@ -197,8 +197,23 @@ export class BackgroundManager {
     const media = item.type === 'image' ? this.imageCache.get(item.id) : this.videoCache.get(item.id);
     if (!media) return;
 
-    const naturalWidth = (media as HTMLImageElement).naturalWidth || (media as HTMLVideoElement).videoWidth || canvasWidth;
-    const naturalHeight = (media as HTMLImageElement).naturalHeight || (media as HTMLVideoElement).videoHeight || canvasHeight;
+    const fullNatW = (media as HTMLImageElement).naturalWidth || (media as HTMLVideoElement).videoWidth || canvasWidth;
+    const fullNatH = (media as HTMLImageElement).naturalHeight || (media as HTMLVideoElement).videoHeight || canvasHeight;
+
+    let sx = 0;
+    let sy = 0;
+    let sw = fullNatW;
+    let sh = fullNatH;
+
+    if (item.crop && item.crop.width > 0 && item.crop.height > 0) {
+      sx = Math.max(0, Math.round(item.crop.x * fullNatW));
+      sy = Math.max(0, Math.round(item.crop.y * fullNatH));
+      sw = Math.min(fullNatW - sx, Math.round(item.crop.width * fullNatW));
+      sh = Math.min(fullNatH - sy, Math.round(item.crop.height * fullNatH));
+    }
+
+    const naturalWidth = sw;
+    const naturalHeight = sh;
 
     let drawWidth = canvasWidth;
     let drawHeight = canvasHeight;
@@ -217,11 +232,17 @@ export class BackgroundManager {
       drawHeight = naturalHeight * scale;
       drawX = (canvasWidth - drawWidth) / 2;
       drawY = (canvasHeight - drawHeight) / 2;
+    } else {
+      // stretch
+      drawWidth = canvasWidth * scaleMultiplier;
+      drawHeight = canvasHeight * scaleMultiplier;
+      drawX = (canvasWidth - drawWidth) / 2;
+      drawY = (canvasHeight - drawHeight) / 2;
     }
 
     ctx.save();
     ctx.globalAlpha = alpha;
-    ctx.drawImage(media, drawX, drawY, drawWidth, drawHeight);
+    ctx.drawImage(media, sx, sy, sw, sh, drawX, drawY, drawWidth, drawHeight);
     ctx.restore();
   }
 }

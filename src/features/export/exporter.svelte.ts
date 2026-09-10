@@ -145,8 +145,8 @@ export class VideoExporter {
             if (vid) {
               // Ambient background video loop: 8 seconds at 16 FPS = ~128 frames @ 540p (~250 MB VRAM instead of 4 GB!)
               const vidDuration = Math.min(8, vid.duration && !isNaN(vid.duration) && vid.duration > 0 ? vid.duration : 8);
-              console.log(`🎬 Pre-extracting ambient background video frames for ${item.id} (${vidDuration.toFixed(1)}s at 16 FPS, 540p cap)...`);
-              const extracted = await extractFramesFromVideo(vid, vidDuration, 960, 540, 16);
+              console.log(`🎬 Pre-extracting ambient background video frames for ${item.id} (${vidDuration.toFixed(1)}s at 16 FPS, 540p cap, pre-cropped)...`);
+              const extracted = await extractFramesFromVideo(vid, vidDuration, 960, 540, 16, item.crop);
               videoFramesMap[item.id] = extracted.frames;
               videoDurationsMap[item.id] = extracted.duration;
               transferables.push(...extracted.frames);
@@ -320,7 +320,8 @@ async function extractFramesFromVideo(
   targetDuration: number = 20,
   targetWidth: number = 1280,
   targetHeight: number = 720,
-  fps: number = 24
+  fps: number = 24,
+  crop?: import('../../lib/types/project').CropRect
 ): Promise<{ frames: ImageBitmap[]; duration: number }> {
   // Extract video loop at specified FPS and duration.
   // Using 16-20 FPS with 540p/720p reduces VRAM usage by >90% without visible quality difference.
@@ -328,15 +329,27 @@ async function extractFramesFromVideo(
   const totalFrames = Math.max(1, Math.floor(duration * fps));
   const frames: ImageBitmap[] = [];
 
+  const rawVidW = video.videoWidth || 1280;
+  const rawVidH = video.videoHeight || 720;
+
+  // If crop is present, calculate source rect one-time
+  let sx = 0;
+  let sy = 0;
+  let sw = rawVidW;
+  let sh = rawVidH;
+  if (crop && crop.width > 0 && crop.height > 0) {
+    sx = Math.max(0, Math.round(crop.x * rawVidW));
+    sy = Math.max(0, Math.round(crop.y * rawVidH));
+    sw = Math.min(rawVidW - sx, Math.round(crop.width * rawVidW));
+    sh = Math.min(rawVidH - sy, Math.round(crop.height * rawVidH));
+  }
+
   // Cap extraction resolution to max 720p (1280x720) to prevent slow GPU texture allocation & RAM bloat
   const maxW = Math.min(targetWidth, 1280);
   const maxH = Math.min(targetHeight, 720);
 
-  const vidW = video.videoWidth || maxW;
-  const vidH = video.videoHeight || maxH;
-
-  let w = vidW;
-  let h = vidH;
+  let w = sw;
+  let h = sh;
   if (w > maxW || h > maxH) {
     const scale = Math.min(maxW / w, maxH / h);
     w = Math.round(w * scale);
@@ -371,7 +384,7 @@ async function extractFramesFromVideo(
     });
 
     ctx.clearRect(0, 0, w, h);
-    ctx.drawImage(video, 0, 0, w, h);
+    ctx.drawImage(video, sx, sy, sw, sh, 0, 0, w, h);
     const bmp = await createImageBitmap(canvas, { resizeQuality: 'medium' });
     frames.push(bmp);
   }

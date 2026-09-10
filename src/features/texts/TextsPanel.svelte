@@ -94,6 +94,7 @@
               class="w-full bg-neutral-900 border border-neutral-800 rounded p-1.5 text-neutral-200 outline-none cursor-pointer"
             >
               <option value="none">Static (None)</option>
+              <option value="marquee-left">Running / Crawling Text (TV News)</option>
               <option value="pulse-beat">Pulse on Beat</option>
               <option value="floating">Gentle Floating</option>
               <option value="shimmer">Shimmer Fade</option>
@@ -102,6 +103,46 @@
             </select>
           </div>
         </div>
+
+        {#if item.animation === 'marquee-left'}
+          <!-- Crawl Speed & Spacing Controls -->
+          <div class="p-2 bg-neutral-900/70 rounded border border-cyan-500/30 space-y-2 text-[11px]">
+            <div class="flex items-center justify-between text-cyan-400 font-medium">
+              <span>Crawling Text (Running Text)</span>
+              <span class="text-[10px] text-neutral-400 font-normal">Geser ke kiri tak terbatas</span>
+            </div>
+
+            <div>
+              <div class="flex justify-between text-neutral-400 mb-0.5">
+                <span>Kecepatan (Speed): {item.crawlSpeed || 160} px/s</span>
+              </div>
+              <input 
+                type="range" 
+                min="40" 
+                max="500" 
+                step="10" 
+                bind:value={item.crawlSpeed} 
+                onchange={() => projectStore.saveToDB()} 
+                class="w-full accent-cyan-500 cursor-pointer" 
+              />
+            </div>
+
+            <div>
+              <div class="flex justify-between text-neutral-400 mb-0.5">
+                <span>Jarak Antar Teks (Spacing): {item.crawlSpacing || 120} px</span>
+              </div>
+              <input 
+                type="range" 
+                min="30" 
+                max="400" 
+                step="10" 
+                bind:value={item.crawlSpacing} 
+                onchange={() => projectStore.saveToDB()} 
+                class="w-full accent-cyan-500 cursor-pointer" 
+              />
+            </div>
+          </div>
+        {/if}
 
         <!-- Alignment & Font Size -->
         <div class="grid grid-cols-2 gap-2 text-[11px]">

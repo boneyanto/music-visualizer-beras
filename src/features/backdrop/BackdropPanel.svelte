@@ -2,8 +2,11 @@
   import { projectStore } from '../../lib/stores/project.svelte';
   import { db } from '../../lib/db/database';
   import { backgroundManager } from './background.svelte';
+  import BackdropCropModal from './BackdropCropModal.svelte';
   import type { BackgroundItem } from '../../lib/types/project';
-  import { Plus, Trash2, Activity } from '@lucide/svelte';
+  import { Plus, Trash2, Activity, Crop } from '@lucide/svelte';
+
+  let croppingItem = $state<BackgroundItem | null>(null);
 
   async function handleBackgroundUpload(e: Event) {
     const target = e.target as HTMLInputElement;
@@ -115,6 +118,17 @@
           </div>
           <div class="flex items-center gap-1 opacity-80 group-hover:opacity-100">
             <button 
+              onclick={() => { croppingItem = item; }}
+              class={`p-1 rounded cursor-pointer transition-colors ${
+                item.crop 
+                  ? 'text-cyan-400 bg-cyan-500/10 hover:bg-cyan-500/20' 
+                  : 'text-neutral-500 hover:text-neutral-200 hover:bg-neutral-800'
+              }`}
+              title={item.crop ? 'Edit Crop (Aktif)' : 'Crop Media'}
+            >
+              <Crop class="w-3.5 h-3.5" />
+            </button>
+            <button 
               onclick={() => removeBackgroundItem(item.id)}
               class="p-1 rounded text-neutral-500 hover:text-rose-400 hover:bg-neutral-800 cursor-pointer"
               title="Remove"
@@ -132,6 +146,13 @@
       {/if}
     </div>
   </div>
+
+  {#if croppingItem}
+    <BackdropCropModal 
+      item={croppingItem} 
+      onClose={() => { croppingItem = null; }} 
+    />
+  {/if}
 
   {#if projectStore.project.background.type.startsWith('multi')}
     <div>

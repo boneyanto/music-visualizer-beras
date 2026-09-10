@@ -141,8 +141,9 @@
       currentFreq = fallbackFreq;
     }
 
-    // Sync video overlays playback state
+    // Sync video overlays & background video playback state
     videoOverlayManager.syncPlayback(projectStore.isPlaying, projectStore.currentTime);
+    backgroundManager.syncPlayback(projectStore.isPlaying, projectStore.currentTime);
 
     // 1. Clear & Render Background
     backgroundManager.render(

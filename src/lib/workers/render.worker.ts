@@ -14,7 +14,7 @@ import { LyricRenderer } from '../../features/lyrics/lyrics';
 import { textOverlayManager } from '../../features/texts/textOverlay.svelte';
 import { tracklistOverlayRenderer } from '../../features/tracklist/tracklistOverlay.svelte';
 import { computeOverlayTransition } from '../utils/transition';
-import type { ProjectConfig, ImageOverlayItem, VideoOverlayItem } from '../types/project';
+import type { ProjectConfig, BackgroundItem, ImageOverlayItem, VideoOverlayItem } from '../types/project';
 
 // Register AAC Encoder polyfill (critical for Safari/WebKit/Tauri which lack WebCodecs AudioEncoder)
 registerAacEncoder();
@@ -247,7 +247,7 @@ self.onmessage = async (e: MessageEvent<RenderRequest | { type: 'CANCEL' }>) => 
     // Setup zero-latency ondequeue backpressure (pure microsecond resolution on Mac, buffered on Windows)
     let queueDrainResolver: (() => void) | null = null;
     videoEncoder.ondequeue = () => {
-      const threshold = isMac ? 6 : 3;
+      const threshold = isMac ? 8 : 4;
       if (queueDrainResolver && videoEncoder.encodeQueueSize <= threshold) {
         const resolve = queueDrainResolver;
         queueDrainResolver = null;
@@ -418,9 +418,9 @@ self.onmessage = async (e: MessageEvent<RenderRequest | { type: 'CANCEL' }>) => 
 
 
         // 8. Platform-optimized GPU Queue Backpressure
-        // Windows iGPU (Intel Iris/UHD, AMD Radeon) and dGPU (NVIDIA/AMD) shared memory safety:
-        // Hard clamp at 8 frames to prevent Media Foundation / D3D11 buffer explosion
-        const maxQueue = isMac ? 16 : 8;
+        // VideoToolbox on Apple Silicon reaches peak 7x-9x+ efficiency with a 24-frame depth
+        // Windows iGPU/dGPU is kept safely bounded at 8-10 frames
+        const maxQueue = isMac ? 24 : 8;
         if (videoEncoder.encodeQueueSize >= maxQueue) {
           await new Promise<void>((resolve) => {
             queueDrainResolver = resolve;
@@ -535,9 +535,10 @@ self.onmessage = async (e: MessageEvent<RenderRequest | { type: 'CANCEL' }>) => 
 
 /**
  * Preload background & overlay images as ImageBitmaps in Web Worker (Zero-copy hardware textures)
+ * If crop is specified, crops one-time during ImageBitmap creation so frame render loops do zero crop math!
  */
 async function preloadBitmaps(
-  items: Array<{ id: string; type?: string; url?: string }> | undefined
+  items: Array<{ id: string; type?: string; url?: string; crop?: import('../../lib/types/project').CropRect }> | undefined
 ): Promise<Map<string, ImageBitmap>> {
   const map = new Map<string, ImageBitmap>();
   if (!items) return map;
@@ -547,9 +548,22 @@ async function preloadBitmaps(
       try {
         const resp = await fetch(item.url);
         const blob = await resp.blob();
-        const bmp = await createImageBitmap(blob, {
-          resizeQuality: 'high',
-        });
+
+        let bmp: ImageBitmap;
+        if (item.crop && item.crop.width > 0 && item.crop.height > 0) {
+          // Pre-decode full bitmap to get natural dimensions, then crop one-time
+          const fullBmp = await createImageBitmap(blob);
+          const fullW = fullBmp.width;
+          const fullH = fullBmp.height;
+          const sx = Math.max(0, Math.round(item.crop.x * fullW));
+          const sy = Math.max(0, Math.round(item.crop.y * fullH));
+          const sw = Math.min(fullW - sx, Math.round(item.crop.width * fullW));
+          const sh = Math.min(fullH - sy, Math.round(item.crop.height * fullH));
+          bmp = await createImageBitmap(fullBmp, sx, sy, sw, sh, { resizeQuality: 'high' });
+          fullBmp.close();
+        } else {
+          bmp = await createImageBitmap(blob, { resizeQuality: 'high' });
+        }
         map.set(item.id, bmp);
       } catch (err) {
         console.warn('Could not load image bitmap in worker:', err);
@@ -660,7 +674,7 @@ function drawBackground(
   width: number,
   height: number,
   bgConfig: ProjectConfig['background'],
-  bgItems: Array<{ id: string; type?: string; duration?: number }>,
+  bgItems: BackgroundItem[],
   currentTime: number,
   rawBeatFactor: number,
   bgBitmaps: Map<string, ImageBitmap>,
@@ -743,7 +757,7 @@ function drawSingleBgItem(
   ctx: OffscreenCanvasRenderingContext2D,
   width: number,
   height: number,
-  item: { id: string; type?: string },
+  item: BackgroundItem,
   scaleMode: string = 'cover',
   scaleFactor: number,
   alpha: number,
@@ -777,6 +791,8 @@ function drawSingleBgItem(
 
   if (!sourceCanvas) return;
 
+  // Since both video frames and static images are already pre-cropped during extraction/load,
+  // we do zero per-frame crop slicing here!
   let drawW = width;
   let drawH = height;
   let drawX = 0;
@@ -786,6 +802,11 @@ function drawSingleBgItem(
     const scale = Math.min(width / natW, height / natH) * scaleFactor;
     drawW = natW * scale;
     drawH = natH * scale;
+    drawX = (width - drawW) / 2;
+    drawY = (height - drawH) / 2;
+  } else if (scaleMode === 'stretch') {
+    drawW = width * scaleFactor;
+    drawH = height * scaleFactor;
     drawX = (width - drawW) / 2;
     drawY = (height - drawH) / 2;
   } else {

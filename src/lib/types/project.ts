@@ -2,6 +2,13 @@ export type BackgroundType = 'single-image' | 'multi-image' | 'single-video' | '
 export type ScaleMode = 'cover' | 'contain' | 'stretch';
 export type TransitionType = 'cut' | 'fade' | 'crossfade';
 
+export interface CropRect {
+  x: number;      // normalized 0.0 - 1.0 (relative to natural media width)
+  y: number;      // normalized 0.0 - 1.0 (relative to natural media height)
+  width: number;  // normalized 0.0 - 1.0
+  height: number; // normalized 0.0 - 1.0
+}
+
 export interface BackgroundItem {
   id: string;
   name: string;
@@ -11,6 +18,7 @@ export interface BackgroundItem {
   duration?: number;
   trimStart?: number;
   trimEnd?: number;
+  crop?: CropRect;
 }
 
 export interface BackgroundConfig {
@@ -328,7 +336,7 @@ export interface VideoOverlayItem {
   transitionDuration?: number;
 }
 
-export type TextAnimationType = 'none' | 'pulse-beat' | 'floating' | 'shimmer' | 'typewriter' | 'glow-pulse';
+export type TextAnimationType = 'none' | 'pulse-beat' | 'floating' | 'shimmer' | 'typewriter' | 'glow-pulse' | 'marquee-left';
 
 export interface TextOverlayItem {
   id: string;
@@ -345,6 +353,8 @@ export interface TextOverlayItem {
   shadow: boolean;
   shadowColor: string;
   animation: TextAnimationType;
+  crawlSpeed?: number;   // Speed in px/s at 1080p scale, default 160
+  crawlSpacing?: number; // Gap between repetitions in px, default 100
   followBeat: boolean;
   beatSensitivity: number;
   startTime?: number;
