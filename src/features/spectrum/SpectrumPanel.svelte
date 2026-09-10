@@ -128,7 +128,7 @@
         bind:checked={activeSpectrum.enabled}
         onchange={() => {
           projectStore.syncActiveSpectrum();
-          projectStore.saveToDB();
+          projectStore.saveToDB(300);
         }}
         class="accent-cyan-500 w-4 h-4 cursor-pointer"
       />
@@ -141,7 +141,7 @@
         bind:value={activeSpectrum.style}
         onchange={() => {
           projectStore.syncActiveSpectrum();
-          projectStore.saveToDB();
+          projectStore.saveToDB(500);
         }}
         class="w-full bg-neutral-950 border border-neutral-800 rounded-lg p-2 text-neutral-200 focus:border-cyan-500 outline-none cursor-pointer text-xs"
       >
@@ -175,7 +175,7 @@
           bind:value={activeSpectrum.x}
           onchange={() => {
             projectStore.syncActiveSpectrum();
-            projectStore.saveToDB();
+            projectStore.saveToDB(400);
           }}
           class="w-full accent-cyan-500 cursor-pointer"
         />
@@ -194,7 +194,7 @@
           bind:value={activeSpectrum.y}
           onchange={() => {
             projectStore.syncActiveSpectrum();
-            projectStore.saveToDB();
+            projectStore.saveToDB(400);
           }}
           class="w-full accent-cyan-500 cursor-pointer"
         />
@@ -213,7 +213,7 @@
           bind:value={activeSpectrum.scale}
           onchange={() => {
             projectStore.syncActiveSpectrum();
-            projectStore.saveToDB();
+            projectStore.saveToDB(400);
           }}
           class="w-full accent-cyan-500 cursor-pointer"
         />
@@ -235,7 +235,7 @@
           bind:value={activeSpectrum.barCount}
           onchange={() => {
             projectStore.syncActiveSpectrum();
-            projectStore.saveToDB();
+            projectStore.saveToDB(400);
           }}
           class="w-full accent-cyan-500 cursor-pointer"
         />
@@ -250,10 +250,11 @@
           type="range" 
           min="30" 
           max="350" 
+          step="2"
           bind:value={activeSpectrum.height}
           onchange={() => {
             projectStore.syncActiveSpectrum();
-            projectStore.saveToDB();
+            projectStore.saveToDB(400);
           }}
           class="w-full accent-cyan-500 cursor-pointer"
         />
@@ -270,7 +271,7 @@
             bind:value={activeSpectrum.color} 
             onchange={() => {
               projectStore.syncActiveSpectrum();
-              projectStore.saveToDB();
+              projectStore.saveToDB(500);
             }} 
             class="w-6 h-6 bg-transparent border-0 cursor-pointer" 
           />
@@ -285,7 +286,7 @@
             bind:value={activeSpectrum.secondaryColor} 
             onchange={() => {
               projectStore.syncActiveSpectrum();
-              projectStore.saveToDB();
+              projectStore.saveToDB(500);
             }} 
             class="w-6 h-6 bg-transparent border-0 cursor-pointer" 
           />
@@ -305,7 +306,7 @@
         bind:checked={activeSpectrum.mirror}
         onchange={() => {
           projectStore.syncActiveSpectrum();
-          projectStore.saveToDB();
+          projectStore.saveToDB(300);
         }}
         class="accent-cyan-500 w-4 h-4 cursor-pointer"
       />
@@ -320,7 +321,7 @@
           bind:checked={activeSpectrum.followBeat}
           onchange={() => {
             projectStore.syncActiveSpectrum();
-            projectStore.saveToDB();
+            projectStore.saveToDB(300);
           }}
           class="accent-cyan-500 w-4 h-4 cursor-pointer"
         />
@@ -340,7 +341,7 @@
             bind:value={activeSpectrum.beatSensitivity}
             onchange={() => {
               projectStore.syncActiveSpectrum();
-              projectStore.saveToDB();
+              projectStore.saveToDB(400);
             }}
             class="w-full accent-cyan-500 cursor-pointer"
           />

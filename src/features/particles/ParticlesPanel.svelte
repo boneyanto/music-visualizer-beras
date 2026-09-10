@@ -8,7 +8,7 @@
     <input 
       type="checkbox" 
       bind:checked={projectStore.project.overlays.particle.enabled}
-      onchange={() => projectStore.saveToDB()}
+      onchange={() => projectStore.saveToDB(300)}
       class="accent-cyan-500 w-4 h-4 cursor-pointer"
     />
   </div>
@@ -17,7 +17,7 @@
     <span class="block text-neutral-400 mb-1.5 font-medium">Preset</span>
     <select 
       bind:value={projectStore.project.overlays.particle.preset}
-      onchange={() => projectStore.saveToDB()}
+      onchange={() => projectStore.saveToDB(500)}
       class="w-full bg-neutral-950 border border-neutral-800 rounded-lg p-2 text-neutral-200 focus:border-cyan-500 outline-none cursor-pointer"
     >
       <option value="Bintik (Dust)">Bintik (Dust)</option>
@@ -56,7 +56,7 @@
       min="10" 
       max="300" 
       bind:value={projectStore.project.overlays.particle.count}
-      onchange={() => projectStore.saveToDB()}
+      onchange={() => projectStore.saveToDB(400)}
       class="w-full accent-cyan-500 cursor-pointer"
     />
   </div>
@@ -71,7 +71,7 @@
       min="1" 
       max="30" 
       bind:value={projectStore.project.overlays.particle.size}
-      onchange={() => projectStore.saveToDB()}
+      onchange={() => projectStore.saveToDB(400)}
       class="w-full accent-cyan-500 cursor-pointer"
     />
   </div>
@@ -87,7 +87,7 @@
       max="3.0" 
       step="0.1" 
       bind:value={projectStore.project.overlays.particle.speed}
-      onchange={() => projectStore.saveToDB()}
+      onchange={() => projectStore.saveToDB(400)}
       class="w-full accent-cyan-500 cursor-pointer"
     />
   </div>
@@ -99,7 +99,7 @@
         <input 
           type="color" 
           bind:value={projectStore.project.overlays.particle.color} 
-          onchange={() => projectStore.saveToDB()} 
+          onchange={() => projectStore.saveToDB(500)} 
           class="w-6 h-6 bg-transparent border-0 cursor-pointer" 
         />
         <span class="font-mono text-[11px]">{projectStore.project.overlays.particle.color}</span>
@@ -113,7 +113,7 @@
         max="1.0" 
         step="0.05" 
         bind:value={projectStore.project.overlays.particle.opacity}
-        onchange={() => projectStore.saveToDB()}
+        onchange={() => projectStore.saveToDB(400)}
         class="w-full accent-cyan-500 cursor-pointer mt-2"
       />
     </div>
@@ -126,7 +126,7 @@
       <input 
         type="checkbox" 
         bind:checked={projectStore.project.overlays.particle.followBeat}
-        onchange={() => projectStore.saveToDB()}
+        onchange={() => projectStore.saveToDB(300)}
         class="accent-cyan-500 w-4 h-4 cursor-pointer"
       />
     </div>
@@ -143,7 +143,7 @@
           max="3.0" 
           step="0.1" 
           bind:value={projectStore.project.overlays.particle.beatSensitivity}
-          onchange={() => projectStore.saveToDB()}
+          onchange={() => projectStore.saveToDB(400)}
           class="w-full accent-cyan-500 cursor-pointer"
         />
       </div>

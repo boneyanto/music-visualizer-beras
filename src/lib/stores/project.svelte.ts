@@ -553,10 +553,28 @@ class ProjectState {
     this.saveToDB();
   }
 
-  async saveToDB() {
+  private saveDebounceTimer: any = null;
+
+  async saveToDB(debounceMs: number = 0) {
+    if (debounceMs > 0) {
+      if (this.saveDebounceTimer) {
+        clearTimeout(this.saveDebounceTimer);
+      }
+      this.saveDebounceTimer = setTimeout(() => {
+        this.saveDebounceTimer = null;
+        this.saveToDB(0);
+      }, debounceMs);
+      return;
+    }
+
+    if (this.saveDebounceTimer) {
+      clearTimeout(this.saveDebounceTimer);
+      this.saveDebounceTimer = null;
+    }
+
     this.isAutosaving = true;
     try {
-      const plainConfig = JSON.parse(JSON.stringify(this.project));
+      const plainConfig = $state.snapshot(this.project) as unknown as ProjectConfig;
       await db.projects.put({
         id: this.project.id,
         title: this.project.title,

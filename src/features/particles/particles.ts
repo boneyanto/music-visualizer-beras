@@ -34,14 +34,25 @@ export class ParticleSystem {
   }
 
   init(config: ParticleConfig) {
-    this.particles = [];
     this.currentPreset = config.preset;
-    for (let i = 0; i < config.count; i++) {
-      this.particles.push(this.createParticle(config));
+    const targetCount = config.count;
+    
+    // In-place mutate existing particles to prevent GC lag
+    const existingLen = this.particles.length;
+    if (existingLen > targetCount) {
+      this.particles.length = targetCount;
+    }
+
+    for (let i = 0; i < targetCount; i++) {
+      if (i < existingLen) {
+        this.resetParticle(this.particles[i], config);
+      } else {
+        this.particles.push(this.createParticle(config));
+      }
     }
   }
 
-  private createParticle(config: ParticleConfig): Particle {
+  private resetParticle(p: Particle, config: ParticleConfig): Particle {
     const scaleFactor = Math.min(this.width / 1920, this.height / 1080);
     const baseSize = (config.size || 6) * scaleFactor;
     let size = Math.max(1, (Math.random() * 0.8 + 0.4) * baseSize);
@@ -143,20 +154,37 @@ export class ParticleSystem {
       else if (config.gravity === 'down') vy = Math.abs(vy) + 0.5 * config.speed * scaleFactor;
     }
 
-    return {
-      x: Math.random() * this.width,
-      y: Math.random() * this.height,
-      vx,
-      vy,
-      size,
-      baseSize: size,
-      alpha: Math.random() * (config.opacity ?? 0.8) + 0.2,
-      color,
-      rotation,
-      vRot,
-      shape,
-    };
+    p.x = Math.random() * this.width;
+    p.y = Math.random() * this.height;
+    p.vx = vx;
+    p.vy = vy;
+    p.size = size;
+    p.baseSize = size;
+    p.alpha = Math.random() * (config.opacity ?? 0.8) + 0.2;
+    p.color = color;
+    p.rotation = rotation;
+    p.vRot = vRot;
+    p.shape = shape;
+    return p;
   }
+
+  private createParticle(config: ParticleConfig): Particle {
+    const p: Particle = {
+      x: 0,
+      y: 0,
+      vx: 0,
+      vy: 0,
+      size: 0,
+      baseSize: 0,
+      alpha: 1,
+      color: '#ffffff',
+      rotation: 0,
+      vRot: 0,
+      shape: 'circle',
+    };
+    return this.resetParticle(p, config);
+  }
+
 
   updateAndRender(
     ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
