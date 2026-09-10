@@ -3,7 +3,7 @@ use std::io::Write;
 use tauri::Manager;
 use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
 
-mod license;
+pub mod license;
 
 #[tauri::command]
 fn save_video_chunk(
