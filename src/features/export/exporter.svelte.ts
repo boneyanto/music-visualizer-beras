@@ -83,7 +83,7 @@ export class VideoExporter {
           this.finalRenderTimeSeconds = Math.max(1, Math.round(totalRenderMs / 1000));
           this.cleanup();
 
-          const blob = new Blob([data.buffer], { type: 'video/mp4' });
+          const blob: Blob = data.blob instanceof Blob ? data.blob : new Blob([data.buffer], { type: 'video/mp4' });
 
           // If this export used up a free quota token (i.e. not PRO license), decrement the quota
           if (!licenseManager.isLicensed && licenseManager.freeQuotaRemaining > 0) {

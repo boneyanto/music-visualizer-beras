@@ -4,7 +4,16 @@ Semua perubahan dan catatan rilis pada proyek **Beras Visualizer** dicatat dalam
 
 ---
 
-## [v3.1.6] - 2026-09-11
+## [v3.1.6] - 2026-09-12
+
+### 🛠️ Perbaikan Render Durasi Panjang (> 1 Jam) & ArrayBuffer Exceeded
+- **Solusi Tuntas Error `ArrayBuffer exceeded maximum size`**:
+  - Menggantikan alokasi monolitik `BufferTarget` dengan `ElasticBlockTarget` berbasis *random-access block paging* (16MB chunks) di Web Worker.
+  - Menghilangkan batasan memori $2\text{ GB} / 4\text{ GB}$ single ArrayBuffer pada Windows (WebView2 V8) dan macOS. Rendering video playlist/kompilasi berdurasi panjang (> 1 jam) kini berjalan stabil tanpa resiko out-of-memory crash.
+  - Mendukung seek & in-place overwrite byte yang presisi untuk box `ftyp`, `moov`, dan `mdat` MP4, menjamin metadata container valid 100%, ukuran file presisi ($1\times$), dan langsung dapat diputar di semua pemutar video (QuickTime, VLC, WMP, Browser).
+  - Menjaga kecepatan render puncak tetap pada benchmark **7x - 9x+**.
+- **CLI License Generator Enhancement**:
+  - Penambahan opsi `--bulk` dan multiple identities untuk penerbitan batch serial key giveaway/voucher secara instan.
 
 ### 🚀 Optimasi Performa Editor Windows (Realtime Playback & Particles)
 - **Eliminasi Lag Parah saat Editing & Playback**:

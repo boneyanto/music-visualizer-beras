@@ -61,6 +61,16 @@ fn sign_license(signing_key: &SigningKey, identity: &str) -> String {
     format!("PRO-{}", b64_sig)
 }
 
+fn print_single_license(identity: &str, key: &str) {
+    println!("=================================================");
+    println!(" Lisensi Beras Visualizer Berhasil Dibuat");
+    println!("=================================================");
+    println!(" Pemilik / Identitas : {}", identity.trim());
+    println!(" Serial Key          : {}", key);
+    println!("=================================================");
+    println!("Kirimkan pasangan (Email/Username) dan (Serial Key) ke user.\n");
+}
+
 fn main() {
     let args: Vec<String> = env::args().collect();
     let signing_key = load_or_create_keypair();
@@ -71,21 +81,59 @@ fn main() {
         println!("Public Key Base64: {}", BASE64.encode(verifying_key.to_bytes()));
         println!("Public Key Rust Array: {:?}", verifying_key.to_bytes());
         println!();
-        println!("Usage: cargo run --bin license_generator -- <email_atau_username>");
+        println!("Usage:");
+        println!("  1. Single License:");
+        println!("     cargo run --manifest-path tools/license_generator/Cargo.toml -- <email_atau_username>");
+        println!("  2. Multiple Identities:");
+        println!("     cargo run --manifest-path tools/license_generator/Cargo.toml -- user1 user2 user3");
+        println!("  3. Bulk Giveaway / Voucher Generator:");
+        println!("     cargo run --manifest-path tools/license_generator/Cargo.toml -- --bulk <jumlah> [prefix]");
         println!("Contoh:");
-        println!("  cargo run --bin license_generator -- \"budi@gmail.com\"");
-        println!("  cargo run --bin license_generator -- \"@juara_giveaway\"");
+        println!("  cargo run --manifest-path tools/license_generator/Cargo.toml -- \"budi@gmail.com\"");
+        println!("  cargo run --manifest-path tools/license_generator/Cargo.toml -- --bulk 10 giveaway");
         return;
     }
 
-    let identity = &args[1];
-    let key = sign_license(&signing_key, identity);
+    // Check if --bulk flag is used
+    if args[1] == "--bulk" {
+        let count: usize = args.get(2)
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(10);
+        let prefix = args.get(3).map(|s| s.as_str()).unwrap_or("giveaway");
 
-    println!("=================================================");
-    println!(" Lisensi Beras Visualizer Berhasil Dibuat");
-    println!("=================================================");
-    println!(" Pemilik / Identitas : {}", identity.trim());
-    println!(" Serial Key          : {}", key);
-    println!("=================================================");
-    println!("Kirimkan pasangan (Email/Username) dan (Serial Key) ke user.");
+        println!("==========================================================================================");
+        println!(" 🎁 GENERATE BULK LISENSI GIVEAWAY (Total: {})", count);
+        println!("==========================================================================================");
+        println!("{:<4} | {:<25} | {:<60}", "No", "Username / Kode Identitas", "Serial Key PRO");
+        println!("------------------------------------------------------------------------------------------");
+
+        for i in 1..=count {
+            let identity = format!("{}_{:02}", prefix, i);
+            let key = sign_license(&signing_key, &identity);
+            println!("{:<4} | {:<25} | {}", i, identity, key);
+        }
+
+        println!("==========================================================================================");
+        println!("Bagikan masing-masing pasangan (Username/Kode) dan (Serial Key PRO) kepada tiap pemenang.");
+        return;
+    }
+
+    // Multiple or single identities
+    let identities = &args[1..];
+    if identities.len() == 1 {
+        let identity = &identities[0];
+        let key = sign_license(&signing_key, identity);
+        print_single_license(identity, &key);
+    } else {
+        println!("==========================================================================================");
+        println!(" 🔑 GENERATE LISENSI (Total: {})", identities.len());
+        println!("==========================================================================================");
+        println!("{:<4} | {:<30} | {:<60}", "No", "Email / Username", "Serial Key PRO");
+        println!("------------------------------------------------------------------------------------------");
+        for (i, id) in identities.iter().enumerate() {
+            let key = sign_license(&signing_key, id);
+            println!("{:<4} | {:<30} | {}", i + 1, id.trim(), key);
+        }
+        println!("==========================================================================================");
+    }
 }

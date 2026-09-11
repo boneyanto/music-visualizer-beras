@@ -1,7 +1,7 @@
 import {
   Output,
   Mp4OutputFormat,
-  BufferTarget,
+  Target,
   EncodedPacket,
   EncodedVideoPacketSource,
   AudioSample,
@@ -18,6 +18,69 @@ import type { ProjectConfig, BackgroundItem, ImageOverlayItem, VideoOverlayItem 
 
 // Register AAC Encoder polyfill (critical for Safari/WebKit/Tauri which lack WebCodecs AudioEncoder)
 registerAacEncoder();
+
+/**
+ * ElasticBlockTarget: Block-paged Target implementation that supports true random-access writes.
+ * Fixes the 4GB / 2GB single ArrayBuffer limit on long audio (>1 hour) without corrupting
+ * MP4 headers (which require in-place seek/overwrite for ftyp, moov, and mdat boxes).
+ */
+const TARGET_BLOCK_SIZE = 16 * 1024 * 1024; // 16MB blocks
+class ElasticBlockTarget extends Target {
+  private blocks = new Map<number, Uint8Array>();
+  private maxPos = 0;
+
+  _start() {}
+
+  _write(data: Uint8Array, pos: number) {
+    let offset = 0;
+    const total = data.byteLength;
+    while (offset < total) {
+      const currentPos = pos + offset;
+      const blockIndex = Math.floor(currentPos / TARGET_BLOCK_SIZE);
+      const blockOffset = currentPos % TARGET_BLOCK_SIZE;
+      const toWrite = Math.min(total - offset, TARGET_BLOCK_SIZE - blockOffset);
+
+      let block = this.blocks.get(blockIndex);
+      if (!block) {
+        block = new Uint8Array(TARGET_BLOCK_SIZE);
+        this.blocks.set(blockIndex, block);
+      }
+      block.set(data.subarray(offset, offset + toWrite), blockOffset);
+      offset += toWrite;
+    }
+    this.maxPos = Math.max(this.maxPos, pos + data.byteLength);
+    (this as any)._dispatchWrite?.(pos, pos + data.byteLength);
+  }
+
+  async _flush() {}
+
+  async _finalize() {
+    (this as any)._emit?.('finalized');
+  }
+
+  async _close() {}
+
+  getBlob(): Blob {
+    const parts: BlobPart[] = [];
+    const totalBlocks = Math.ceil(this.maxPos / TARGET_BLOCK_SIZE);
+    for (let i = 0; i < totalBlocks; i++) {
+      const block = this.blocks.get(i) || new Uint8Array(TARGET_BLOCK_SIZE);
+      const isLast = (i === totalBlocks - 1);
+      if (isLast) {
+        const rem = this.maxPos % TARGET_BLOCK_SIZE;
+        parts.push(rem === 0 ? (block as unknown as BlobPart) : (block.subarray(0, rem) as unknown as BlobPart));
+      } else {
+        parts.push(block as unknown as BlobPart);
+      }
+    }
+    return new Blob(parts, { type: 'video/mp4' });
+  }
+
+  clear() {
+    this.blocks.clear();
+    this.maxPos = 0;
+  }
+}
 
 interface RenderRequest {
   type: 'START_RENDER';
@@ -162,8 +225,8 @@ self.onmessage = async (e: MessageEvent<RenderRequest | { type: 'CANCEL' }>) => 
       textX: wmTextX,
     };
 
-    // Setup Mediabunny Output & Tracks
-    const target = new BufferTarget();
+    // Setup Mediabunny Output & Tracks (using ElasticBlockTarget with 16MB blocks to support >1h duration without ArrayBuffer limit)
+    const target = new ElasticBlockTarget();
     const output = new Output({
       target,
       format: new Mp4OutputFormat({ fastStart: 'in-memory' }),
@@ -496,19 +559,17 @@ self.onmessage = async (e: MessageEvent<RenderRequest | { type: 'CANCEL' }>) => 
       textOverlayManager?.clearCache?.();
       tracklistOverlayRenderer?.clearCache?.();
 
-      const buffer = target.buffer;
+      const blob = target.getBlob();
+      target.clear();
 
-      if (!buffer) {
-        throw new Error('Gagal menghasilkan video buffer dari Mediabunny');
+      if (!blob || blob.size === 0) {
+        throw new Error('Gagal menghasilkan video output dari Mediabunny');
       }
 
-      self.postMessage(
-        {
-          type: 'COMPLETE',
-          buffer,
-        },
-        { transfer: [buffer] }
-      );
+      self.postMessage({
+        type: 'COMPLETE',
+        blob,
+      });
 
     } catch (err: any) {
       try {

@@ -18,6 +18,15 @@ cargo run --manifest-path tools/license_generator/Cargo.toml -- "budi@gmail.com"
 cargo run --manifest-path tools/license_generator/Cargo.toml -- "@juara_giveaway"
 ```
 
+### 3. Bulk Generate Sekaligus (Contoh: 10 Lisensi untuk Giveaway / Voucher):
+```bash
+# Otomatis membuat 10 kode (giveaway_01 s/d giveaway_10):
+cargo run --manifest-path tools/license_generator/Cargo.toml -- --bulk 10 giveaway
+
+# Atau langsung masukkan daftar username pemenang sekaligus:
+cargo run --manifest-path tools/license_generator/Cargo.toml -- user1 user2 user3 user4 user5 user6 user7 user8 user9 user10
+```
+
 ---
 
 ## 📋 Contoh Output di Terminal:
