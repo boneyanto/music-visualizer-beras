@@ -5,7 +5,7 @@
   import type { SpectrumConfig } from '../../lib/types/project';
 
   // Ensure project overlays spectrums is initialized
-  $effect(() => {
+  $effect.root(() => {
     if (!projectStore.project.overlays.spectrums || projectStore.project.overlays.spectrums.length === 0) {
       projectStore.project.overlays.spectrums = [{
         ...projectStore.project.overlays.spectrum,
