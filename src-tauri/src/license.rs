@@ -282,6 +282,7 @@ pub struct LicenseInfo {
     pub licensee: Option<String>,
     pub license_key: Option<String>,
     pub free_quota_remaining: u32,
+    pub hwid: String,
 }
 
 #[tauri::command]
@@ -298,6 +299,7 @@ pub fn get_license_info(app: AppHandle) -> LicenseInfo {
         licensee: if is_licensed { payload.licensee } else { None },
         license_key: if is_licensed { payload.license_key } else { None },
         free_quota_remaining: payload.free_quota,
+        hwid,
     }
 }
 

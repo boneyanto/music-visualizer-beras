@@ -5,15 +5,18 @@ export interface LicenseInfo {
   licensee: string | null;
   license_key: string | null;
   free_quota_remaining?: number;
+  hwid?: string;
 }
 
 export class LicenseManager {
   public isLicensed = $state<boolean>(false);
   public licensee = $state<string | null>(null);
   public licenseKey = $state<string | null>(null);
+  public hwid = $state<string>('');
   public freeQuotaRemaining = $state<number>(3);
   public isLoading = $state<boolean>(true);
   public errorMessage = $state<string | null>(null);
+  public workerApiUrl = $state<string>('https://beras-license-server.beras-license-server.workers.dev');
 
   constructor() {
     this.init();
@@ -34,7 +37,12 @@ export class LicenseManager {
         this.isLicensed = info.is_licensed;
         this.licensee = info.licensee;
         this.licenseKey = info.license_key;
+        this.hwid = info.hwid || '';
         this.freeQuotaRemaining = typeof info.free_quota_remaining === 'number' ? info.free_quota_remaining : 3;
+
+        if (this.isLicensed && this.licensee) {
+          this.sendHeartbeat();
+        }
       } catch (err: any) {
         console.warn('Failed to get native license info:', err);
         this.fallbackWebInit();
@@ -116,6 +124,10 @@ export class LicenseManager {
         if (typeof info.free_quota_remaining === 'number') {
           this.freeQuotaRemaining = info.free_quota_remaining;
         }
+
+        // Silent single-device lock via Cloudflare Worker (jika url telah diset)
+        this.syncWithCloud(cleanId, cleanKey, info.hwid || this.hwid);
+
         return true;
       } catch (err: any) {
         this.errorMessage = typeof err === 'string' ? err : (err.message || 'Gagal aktivasi lisensi.');
@@ -129,6 +141,49 @@ export class LicenseManager {
       this.licensee = cleanId;
       this.licenseKey = cleanKey;
       return true;
+    }
+  }
+
+  /**
+   * Mengirim sinyal heartbeat ringan ke Cloudflare Worker untuk pelacakan user aktif
+   */
+  async sendHeartbeat() {
+    if (!this.workerApiUrl || !this.licensee) return;
+    try {
+      await fetch(`${this.workerApiUrl}/api/heartbeat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          licensee: this.licensee,
+          hwid: this.hwid,
+          version: '3.1.6',
+          os: navigator.userAgent.includes('Mac') ? 'macOS' : 'Windows'
+        })
+      });
+    } catch {
+      // Silent ignore jika offline
+    }
+  }
+
+  /**
+   * Mendaftarkan binding perangkat ke Cloudflare Worker tanpa user perlu repot
+   */
+  async syncWithCloud(licensee: string, key: string, hwid: string) {
+    if (!this.workerApiUrl) return;
+    try {
+      await fetch(`${this.workerApiUrl}/api/activate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          licensee,
+          license_key: key,
+          hwid,
+          version: '3.1.6',
+          os: navigator.userAgent.includes('Mac') ? 'macOS' : 'Windows'
+        })
+      });
+    } catch {
+      // Silent ignore jika offline
     }
   }
 }
