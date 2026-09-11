@@ -17,6 +17,9 @@ Semua perubahan dan catatan rilis pada proyek **Beras Visualizer** dicatat dalam
   - Kunci publik tertanam di dalam aplikasi secara aman.
   - Mekanisme *ghost anchor storage* tetap aktif untuk menjaga status lisensi dari pembersihan cache / uninstaller pihak ketiga.
   - File master key privat otomatis diproteksi dalam `.gitignore`.
+- **Single-Device Lock & Real-Time Tracking (Cloudflare Worker)**:
+  - Integrasi Cloudflare Worker untuk mengunci lisensi ke 1 perangkat secara otomatis dan senyap tanpa mengganggu user.
+  - Live heartbeat untuk melacak user yang sedang aktif serta dashboard admin untuk memantau penggunaan lisensi.
 
 ### ⚡ Performa
 - Kecepatan render video tetap berada pada performa tinggi **7x-9x** dengan konsumsi VRAM yang stabil dan efisien.
