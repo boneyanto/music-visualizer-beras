@@ -336,7 +336,12 @@ export class ParticleSystem {
     scaleFactor: number
   ) {
     ctx.fillStyle = config.color || '#fef08a';
-    for (let i = 0; i < this.particles.length; i++) {
+    ctx.globalAlpha = config.opacity ?? 0.8;
+    const beatMult = config.followBeat ? 1 + (beatFactor - 1) * 0.4 : 1.0;
+    const count = this.particles.length;
+
+    ctx.beginPath();
+    for (let i = 0; i < count; i++) {
       const p = this.particles[i];
       p.rotation += 0.05;
       p.x += p.vx;
@@ -345,12 +350,11 @@ export class ParticleSystem {
       if (p.x > this.width) p.x = 0;
       if (p.y < 0) p.y = this.height;
       if (p.y > this.height) p.y = 0;
-      const sz = p.baseSize * (1 + Math.sin(p.rotation) * 0.4) * (config.followBeat ? 1 + (beatFactor - 1) * 0.4 : 1.0);
-      ctx.globalAlpha = p.alpha * (config.opacity ?? 0.8);
-      ctx.beginPath();
+      const sz = p.baseSize * (1 + Math.sin(p.rotation) * 0.4) * beatMult;
+      ctx.moveTo(p.x + sz, p.y);
       ctx.arc(p.x, p.y, sz, 0, Math.PI * 2);
-      ctx.fill();
     }
+    ctx.fill();
   }
 
   private renderBurst(
@@ -362,19 +366,25 @@ export class ParticleSystem {
     const cx = this.width / 2;
     const cy = this.height / 2;
     ctx.fillStyle = config.color || '#38bdf8';
-    for (let i = 0; i < this.particles.length; i++) {
+    ctx.globalAlpha = config.opacity ?? 0.85;
+    const posBeat = config.followBeat ? 1 + (beatFactor - 1) * 0.8 : 1.0;
+    const sizeMult = config.followBeat ? 1 + (beatFactor - 1) * 0.4 : 1.0;
+    const count = this.particles.length;
+
+    ctx.beginPath();
+    for (let i = 0; i < count; i++) {
       const p = this.particles[i];
-      p.x += p.vx * (config.followBeat ? 1 + (beatFactor - 1) * 0.8 : 1.0);
-      p.y += p.vy * (config.followBeat ? 1 + (beatFactor - 1) * 0.8 : 1.0);
+      p.x += p.vx * posBeat;
+      p.y += p.vy * posBeat;
       if (p.x < 0 || p.x > this.width || p.y < 0 || p.y > this.height) {
         p.x = cx + (Math.random() - 0.5) * 50 * scaleFactor;
         p.y = cy + (Math.random() - 0.5) * 50 * scaleFactor;
       }
-      ctx.globalAlpha = p.alpha * (config.opacity ?? 0.85);
-      ctx.beginPath();
-      ctx.arc(p.x, p.y, p.baseSize * (config.followBeat ? 1 + (beatFactor - 1) * 0.4 : 1.0), 0, Math.PI * 2);
-      ctx.fill();
+      const sz = p.baseSize * sizeMult;
+      ctx.moveTo(p.x + sz, p.y);
+      ctx.arc(p.x, p.y, sz, 0, Math.PI * 2);
     }
+    ctx.fill();
   }
 
   private renderBokeh(
@@ -448,11 +458,17 @@ export class ParticleSystem {
     scaleFactor: number
   ) {
     ctx.fillStyle = config.color || '#ffffff';
-    for (let i = 0; i < this.particles.length; i++) {
+    const beatMult = config.followBeat ? 1 + (beatFactor - 1) * 0.2 : 1.0;
+    const count = this.particles.length;
+
+    // Batched single path to eliminate hundreds of individual fill calls
+    ctx.globalAlpha = config.opacity ?? 0.8;
+    ctx.beginPath();
+    for (let i = 0; i < count; i++) {
       const p = this.particles[i];
       p.rotation += p.vRot;
-      p.x += (p.vx + Math.sin(p.rotation * 2) * 0.6 * scaleFactor) * (config.followBeat ? 1 + (beatFactor - 1) * 0.2 : 1.0);
-      p.y += p.vy * (config.followBeat ? 1 + (beatFactor - 1) * 0.2 : 1.0);
+      p.x += (p.vx + Math.sin(p.rotation * 2) * 0.6 * scaleFactor) * beatMult;
+      p.y += p.vy * beatMult;
 
       if (p.x < -20 * scaleFactor) p.x = this.width + 20 * scaleFactor;
       if (p.x > this.width + 20 * scaleFactor) p.x = -20 * scaleFactor;
@@ -461,13 +477,11 @@ export class ParticleSystem {
         p.x = Math.random() * this.width;
       }
 
-      const currentSize = config.followBeat ? p.baseSize * (1 + (beatFactor - 1) * 0.2) : p.baseSize;
-      ctx.globalAlpha = p.alpha * (config.opacity ?? 0.8);
-
-      ctx.beginPath();
+      const currentSize = config.followBeat ? p.baseSize * beatMult : p.baseSize;
+      ctx.moveTo(p.x + currentSize, p.y);
       ctx.arc(p.x, p.y, currentSize, 0, Math.PI * 2);
-      ctx.fill();
     }
+    ctx.fill();
   }
 
   private renderSparks(
@@ -476,10 +490,16 @@ export class ParticleSystem {
     beatFactor: number,
     scaleFactor: number
   ) {
-    for (let i = 0; i < this.particles.length; i++) {
+    const beatMult = config.followBeat ? 1 + (beatFactor - 1) * 0.8 : 1.0;
+    const count = this.particles.length;
+
+    ctx.globalAlpha = config.opacity ?? 0.9;
+    ctx.strokeStyle = config.color || '#fbbf24';
+    ctx.beginPath();
+    for (let i = 0; i < count; i++) {
       const p = this.particles[i];
-      p.x += p.vx * (config.followBeat ? 1 + (beatFactor - 1) * 0.8 : 1.0);
-      p.y += p.vy * (config.followBeat ? 1 + (beatFactor - 1) * 0.8 : 1.0);
+      p.x += p.vx * beatMult;
+      p.y += p.vy * beatMult;
 
       if (p.x < -30 * scaleFactor) p.x = this.width + 30 * scaleFactor;
       if (p.x > this.width + 30 * scaleFactor) p.x = -30 * scaleFactor;
@@ -488,16 +508,11 @@ export class ParticleSystem {
         p.x = Math.random() * this.width;
       }
 
-      const currentSize = config.followBeat ? p.baseSize * (1 + (beatFactor - 1) * 0.5) : p.baseSize;
-      ctx.globalAlpha = p.alpha * (config.opacity ?? 0.9);
-      ctx.strokeStyle = p.color;
-      ctx.lineWidth = Math.max(1.5 * scaleFactor, currentSize * 0.6);
-
-      ctx.beginPath();
       ctx.moveTo(p.x, p.y);
       ctx.lineTo(p.x - p.vx * 3, p.y - p.vy * 3);
-      ctx.stroke();
     }
+    ctx.lineWidth = Math.max(1.5 * scaleFactor, (config.size || 6) * 0.5 * scaleFactor);
+    ctx.stroke();
   }
 
   private renderFloatingDust(
@@ -507,22 +522,27 @@ export class ParticleSystem {
     scaleFactor: number
   ) {
     ctx.fillStyle = config.color || '#ffffff';
-    for (let i = 0; i < this.particles.length; i++) {
+    const beatMult = config.followBeat ? 1 + (beatFactor - 1) * 0.35 : 1.0;
+    const sizeMult = config.followBeat ? 1 + (beatFactor - 1) * 0.25 : 1.0;
+    const count = this.particles.length;
+
+    // Batched single-path dispatch (1 draw call vs 300 individual calls)
+    ctx.globalAlpha = config.opacity ?? 0.8;
+    ctx.beginPath();
+    for (let i = 0; i < count; i++) {
       const p = this.particles[i];
-      p.x += p.vx * (config.followBeat ? 1 + (beatFactor - 1) * 0.35 : 1.0);
-      p.y += p.vy * (config.followBeat ? 1 + (beatFactor - 1) * 0.35 : 1.0);
+      p.x += p.vx * beatMult;
+      p.y += p.vy * beatMult;
 
       if (p.x < -20 * scaleFactor) p.x = this.width + 20 * scaleFactor;
       if (p.x > this.width + 20 * scaleFactor) p.x = -20 * scaleFactor;
       if (p.y < -20 * scaleFactor) p.y = this.height + 20 * scaleFactor;
       if (p.y > this.height + 20 * scaleFactor) p.y = -20 * scaleFactor;
 
-      const currentSize = config.followBeat ? p.baseSize * (1 + (beatFactor - 1) * 0.25) : p.baseSize;
-      ctx.globalAlpha = p.alpha * (config.opacity ?? 0.8);
-
-      ctx.beginPath();
+      const currentSize = p.baseSize * sizeMult;
+      ctx.moveTo(p.x + currentSize, p.y);
       ctx.arc(p.x, p.y, currentSize, 0, Math.PI * 2);
-      ctx.fill();
     }
+    ctx.fill();
   }
 }

@@ -41,6 +41,8 @@
     }
   }
 
+  let lastStoreTimeUpdate = 0;
+
   function renderFrame() {
     if (!canvasRef) return;
 
@@ -63,21 +65,31 @@
       particles.resize(width, height);
     }
 
-    // Sync time with audio engine
+    // High-Precision Local Audio Clock (Zero-lag reading directly from hardware audio engine)
+    let curTime = projectStore.currentTime;
     if (projectStore.isPlaying) {
       if (projectStore.audioBuffer) {
-        projectStore.currentTime = audioEngine.getCurrentTime();
+        curTime = audioEngine.getCurrentTime();
       } else {
-        projectStore.currentTime += 1 / 60;
-        if (projectStore.currentTime > (projectStore.project.audio.duration || 180)) {
-          projectStore.currentTime = 0;
+        curTime += 1 / 60;
+        if (curTime > (projectStore.project.audio.duration || 180)) {
+          curTime = 0;
         }
       }
+
+      // Throttle Svelte 5 rune state update to ~15 FPS (every 66ms)
+      // This eliminates heavy DOM re-renders and CPU thread locks on Windows WebView2!
+      const now = performance.now();
+      if (now - lastStoreTimeUpdate >= 66) {
+        projectStore.currentTime = curTime;
+        lastStoreTimeUpdate = now;
+      }
+    } else {
+      curTime = projectStore.currentTime;
     }
 
     // Smooth Continuous Beat Interpolation (Deterministic Exponential Decay with Resting Clamp)
     let beatFactor = 1.0;
-    const curTime = projectStore.currentTime;
 
     if (projectStore.beats.length > 0) {
       const beats = projectStore.beats;
@@ -130,20 +142,20 @@
     if (projectStore.frequencyFrames.length > 0) {
       const frameIdx = Math.min(
         projectStore.frequencyFrames.length - 1,
-        Math.floor(projectStore.currentTime / projectStore.frameDuration)
+        Math.floor(curTime / projectStore.frameDuration)
       );
       currentFreq = projectStore.frequencyFrames[frameIdx] || fallbackFreq;
     } else {
       for (let i = 0; i < fallbackFreq.length; i++) {
-        const wave = Math.sin(projectStore.currentTime * 6 + i * 0.2);
+        const wave = Math.sin(curTime * 6 + i * 0.2);
         fallbackFreq[i] = Math.max(20, Math.min(255, Math.floor((wave * 0.5 + 0.5) * 180 * beatFactor)));
       }
       currentFreq = fallbackFreq;
     }
 
     // Sync video overlays & background video playback state
-    videoOverlayManager.syncPlayback(projectStore.isPlaying, projectStore.currentTime);
-    backgroundManager.syncPlayback(projectStore.isPlaying, projectStore.currentTime);
+    videoOverlayManager.syncPlayback(projectStore.isPlaying, curTime);
+    backgroundManager.syncPlayback(projectStore.isPlaying, curTime);
 
     // 1. Clear & Render Background
     backgroundManager.render(
@@ -151,7 +163,7 @@
       width,
       height,
       projectStore.project.background,
-      projectStore.currentTime,
+      curTime,
       beatFactor
     );
 
@@ -167,7 +179,7 @@
         width,
         height,
         projectStore.project.overlays.videos,
-        projectStore.currentTime,
+        curTime,
         videoBeatMap
       );
     }
@@ -178,7 +190,7 @@
       width,
       height,
       projectStore.project.overlays.images || [],
-      projectStore.currentTime,
+      curTime,
       beatFactor
     );
 
@@ -188,7 +200,7 @@
       width,
       height,
       projectStore.project.overlays.texts || [],
-      projectStore.currentTime,
+      curTime,
       beatFactor
     );
 
@@ -199,7 +211,7 @@
       height,
       projectStore.project.overlays.tracklist,
       projectStore.project.audio.tracks,
-      projectStore.currentTime,
+      curTime,
       beatFactor
     );
 
@@ -218,7 +230,7 @@
       height, 
       projectStore.project.lyrics.config, 
       projectStore.project.lyrics.segments, 
-      projectStore.currentTime, 
+      curTime, 
       beatFactor
     );
 
