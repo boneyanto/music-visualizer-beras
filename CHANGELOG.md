@@ -4,6 +4,23 @@ Semua perubahan dan catatan rilis pada proyek **Beras Visualizer** dicatat dalam
 
 ---
 
+## [v3.1.7] - 2026-09-12
+
+### ⚡ Eliminasi Total Lag Editor di Windows & Low-End GPU (Intel Gen 8)
+- **Software 60 FPS Framerate Limiter di Preview Canvas**:
+  - Mengimplementasikan frame rate throttling presisi ($60\text{ FPS}$ cap) pada loop `renderFrame` di `PreviewCanvas.svelte`.
+  - Mencegah loop Canvas editor berputar liar tanpa batas ($300+\text{ FPS}$) akibat argumen `--disable-gpu-vsync` dan `--disable-frame-rate-limit` pada WebView2 Windows.
+  - Penggunaan iGPU Intel Gen 8 saat editing turun drastis mendekati 0%, temperatur adem, dan pergerakan mouse/slider kembali halus tanpa lag.
+- **Mempertahankan Kecepatan Render Puncak (7x - 9x)**:
+  - Argumen `--disable-gpu-vsync` dan `--disable-frame-rate-limit` tetap aktif untuk WebCodecs Worker.
+  - Zero-Overhead Render Shutter secara otomatis mematikan render canvas saat export berjalan, membebaskan 100% daya GPU untuk rendering berkecepatan 7x - 9x tanpa perlu menutup atau menutupi jendela aplikasi dengan jendela lain.
+- **Dropdown Style Visualizer Bebas Lag**:
+  - Menghilangkan two-way binding agresif (`bind:value`) pada pilihan spektrum di `SpectrumPanel.svelte`, digantikan dengan controlled value + discrete change handler dan debounced save (800ms) agar navigasi menu responsif instan.
+- **Koleksi Lengkap Spektrum & Partikel**:
+  - Mempertahankan 100% seluruh koleksi 100+ style spektrum visualizer matematika, Avant-Garde, Quantum Physics, serta seluruh preset partikel tanpa ada yang dipangkas.
+
+---
+
 ## [v3.1.6] - 2026-09-12
 
 ### 🛠️ Perbaikan Render Durasi Panjang (> 1 Jam) & ArrayBuffer Exceeded

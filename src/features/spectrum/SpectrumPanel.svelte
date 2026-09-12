@@ -138,10 +138,14 @@
     <div>
       <span class="block text-neutral-400 mb-1.5 font-medium">Style Visualizer</span>
       <select 
-        bind:value={activeSpectrum.style}
-        onchange={() => {
-          projectStore.syncActiveSpectrum();
-          projectStore.saveToDB(500);
+        value={activeSpectrum.style}
+        onchange={(e) => {
+          const nextStyle = e.currentTarget.value as any;
+          if (activeSpectrum.style !== nextStyle) {
+            activeSpectrum.style = nextStyle;
+            projectStore.syncActiveSpectrum();
+            projectStore.saveToDB(800);
+          }
         }}
         class="w-full bg-neutral-950 border border-neutral-800 rounded-lg p-2 text-neutral-200 focus:border-cyan-500 outline-none cursor-pointer text-xs"
       >
