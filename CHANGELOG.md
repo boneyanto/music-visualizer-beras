@@ -4,6 +4,17 @@ Semua perubahan dan catatan rilis pada proyek **Beras Visualizer** dicatat dalam
 
 ---
 
+## [v3.1.8] - 2026-09-12
+
+### 🌐 Repositori Publik & Pembersihan Generator Internal
+- **Isolasi Penuh Generator Lisensi**:
+  - Mengeluarkan file generator lisensi internal (`tools/license_generator/`), server tracking backend (`server/cloudflare-worker/`), dan panduan generate lisensi (`CARA_GENERATE_LISENSI.md`) dari git tracking untuk persiapan repositori dijadikan publik (open-source).
+  - Menjaga modul verifikasi lisensi Ed25519 dan kuota watermark tetap utuh pada client app.
+- **Konservasi Kecepatan Render Puncak (7x - 9x)**:
+  - Memastikan seluruh parameter performa, GPU acceleration, serta hardware encoder tetap optimal pada performa terbaik.
+
+---
+
 ## [v3.1.7] - 2026-09-12
 
 ### ⚡ Eliminasi Total Lag Editor di Windows & Low-End GPU (Intel Gen 8)

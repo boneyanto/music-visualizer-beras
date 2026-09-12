@@ -47,8 +47,10 @@ AGENTS.md
 GEMINI.md
 opencode.jsonc
 
-# Master Keypair
+# Master Keypair & Private License Generator
 src-tauri/.beras_master_key.json
 .beras_master_key.json
 
-tools/license_generator/target
+tools/license_generator/
+server/
+CARA_GENERATE_LISENSI.md
