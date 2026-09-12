@@ -41,54 +41,14 @@
     }
   }
 
-  let lastStoreTimeUpdate = 0;
-  let lastFrameTime = 0;
-  let frameTimer: any = null;
-
-  function scheduleNextFrame() {
-    if (videoExporter.isExporting) return;
-    if (animId || frameTimer) return;
-
-    // Power-Saving Idle Sleep:
-    // When playing: schedule 60 FPS (16.6ms) for smooth playback.
-    // When paused / idle: do NOT loop continuously! The canvas is completely at rest (0% CPU).
-    if (!projectStore.isPlaying) {
-      return;
-    }
-
-    const targetInterval = 1000 / 60;
-    const now = performance.now();
-    const elapsed = now - lastFrameTime;
-    const remaining = Math.max(0, targetInterval - elapsed);
-
-    if (remaining <= 2) {
-      animId = requestAnimationFrame(renderFrame);
-    } else {
-      frameTimer = setTimeout(() => {
-        frameTimer = null;
-        animId = requestAnimationFrame(renderFrame);
-      }, remaining);
-    }
-  }
-
-  // Force render a single frame on demand (e.g. when paused and user tweaks sliders)
-  function requestSingleRender() {
-    if (videoExporter.isExporting) return;
-    if (!animId && !frameTimer) {
-      animId = requestAnimationFrame(renderFrame);
-    }
-  }
-
-  function renderFrame(timestamp: number = performance.now()) {
-    animId = 0;
+  function renderFrame() {
     if (!canvasRef) return;
 
-    // Zero-Overhead Render Shutter: Halt completely during export
+    // Liberate 100% of GPU & CPU for export worker while video export is running
     if (videoExporter.isExporting) {
+      animId = requestAnimationFrame(renderFrame);
       return;
     }
-
-    lastFrameTime = timestamp;
 
     const ctx = canvasRef.getContext('2d');
     if (!ctx) return;
@@ -103,31 +63,21 @@
       particles.resize(width, height);
     }
 
-    // High-Precision Local Audio Clock (Zero-lag reading directly from hardware audio engine)
-    let curTime = projectStore.currentTime;
+    // Sync time with audio engine
     if (projectStore.isPlaying) {
       if (projectStore.audioBuffer) {
-        curTime = audioEngine.getCurrentTime();
+        projectStore.currentTime = audioEngine.getCurrentTime();
       } else {
-        curTime += 1 / 60;
-        if (curTime > (projectStore.project.audio.duration || 180)) {
-          curTime = 0;
+        projectStore.currentTime += 1 / 60;
+        if (projectStore.currentTime > (projectStore.project.audio.duration || 180)) {
+          projectStore.currentTime = 0;
         }
       }
-
-      // Throttle Svelte 5 rune state update to ~15 FPS (every 66ms)
-      // This eliminates heavy DOM re-renders and CPU thread locks on Windows WebView2!
-      const now = performance.now();
-      if (now - lastStoreTimeUpdate >= 66) {
-        projectStore.currentTime = curTime;
-        lastStoreTimeUpdate = now;
-      }
-    } else {
-      curTime = projectStore.currentTime;
     }
 
     // Smooth Continuous Beat Interpolation (Deterministic Exponential Decay with Resting Clamp)
     let beatFactor = 1.0;
+    const curTime = projectStore.currentTime;
 
     if (projectStore.beats.length > 0) {
       const beats = projectStore.beats;
@@ -180,20 +130,20 @@
     if (projectStore.frequencyFrames.length > 0) {
       const frameIdx = Math.min(
         projectStore.frequencyFrames.length - 1,
-        Math.floor(curTime / projectStore.frameDuration)
+        Math.floor(projectStore.currentTime / projectStore.frameDuration)
       );
       currentFreq = projectStore.frequencyFrames[frameIdx] || fallbackFreq;
     } else {
       for (let i = 0; i < fallbackFreq.length; i++) {
-        const wave = Math.sin(curTime * 6 + i * 0.2);
+        const wave = Math.sin(projectStore.currentTime * 6 + i * 0.2);
         fallbackFreq[i] = Math.max(20, Math.min(255, Math.floor((wave * 0.5 + 0.5) * 180 * beatFactor)));
       }
       currentFreq = fallbackFreq;
     }
 
     // Sync video overlays & background video playback state
-    videoOverlayManager.syncPlayback(projectStore.isPlaying, curTime);
-    backgroundManager.syncPlayback(projectStore.isPlaying, curTime);
+    videoOverlayManager.syncPlayback(projectStore.isPlaying, projectStore.currentTime);
+    backgroundManager.syncPlayback(projectStore.isPlaying, projectStore.currentTime);
 
     // 1. Clear & Render Background
     backgroundManager.render(
@@ -201,7 +151,7 @@
       width,
       height,
       projectStore.project.background,
-      curTime,
+      projectStore.currentTime,
       beatFactor
     );
 
@@ -217,7 +167,7 @@
         width,
         height,
         projectStore.project.overlays.videos,
-        curTime,
+        projectStore.currentTime,
         videoBeatMap
       );
     }
@@ -228,7 +178,7 @@
       width,
       height,
       projectStore.project.overlays.images || [],
-      curTime,
+      projectStore.currentTime,
       beatFactor
     );
 
@@ -238,7 +188,7 @@
       width,
       height,
       projectStore.project.overlays.texts || [],
-      curTime,
+      projectStore.currentTime,
       beatFactor
     );
 
@@ -249,12 +199,12 @@
       height,
       projectStore.project.overlays.tracklist,
       projectStore.project.audio.tracks,
-      curTime,
+      projectStore.currentTime,
       beatFactor
     );
 
     // 5. Render Particle, Spectrum, Lyrics
-    particles.updateAndRender(ctx, projectStore.project.overlays.particle, beatFactor, projectStore.isPlaying);
+    particles.updateAndRender(ctx, projectStore.project.overlays.particle, beatFactor);
     if (projectStore.project.overlays.spectrums && projectStore.project.overlays.spectrums.length > 0) {
       for (let i = 0; i < projectStore.project.overlays.spectrums.length; i++) {
         spectrum.render(ctx, width, height, projectStore.project.overlays.spectrums[i], currentFreq, beatFactor);
@@ -268,11 +218,11 @@
       height, 
       projectStore.project.lyrics.config, 
       projectStore.project.lyrics.segments, 
-      curTime, 
+      projectStore.currentTime, 
       beatFactor
     );
 
-    scheduleNextFrame();
+    animId = requestAnimationFrame(renderFrame);
   }
 
   $effect(() => {
@@ -309,56 +259,12 @@
     }
   });
 
-  $effect(() => {
-    // Zero-Overhead Render Shutter: Resume preview rendering when export ends, or pause when export starts
-    if (videoExporter.isExporting) {
-      if (animId) {
-        cancelAnimationFrame(animId);
-        animId = 0;
-      }
-      if (frameTimer) {
-        clearTimeout(frameTimer);
-        frameTimer = null;
-      }
-    } else {
-      requestSingleRender();
-    }
-  });
-
-  // Wake up loop when user clicks Play / Pause
-  $effect(() => {
-    if (projectStore.isPlaying) {
-      scheduleNextFrame();
-    } else {
-      // Render one final frame so the pause state visually matches
-      requestSingleRender();
-    }
-  });
-
-  // Re-render single frame whenever currentTime is scrubbed while paused
-  $effect(() => {
-    const _t = projectStore.currentTime;
-    if (!projectStore.isPlaying) {
-      requestSingleRender();
-    }
-  });
-
-  // Re-render single frame when overlays or settings change while paused
-  $effect(() => {
-    // Touch reactive properties
-    const _p = projectStore.project;
-    if (!projectStore.isPlaying) {
-      requestSingleRender();
-    }
-  });
-
   onMount(() => {
-    requestSingleRender();
+    animId = requestAnimationFrame(renderFrame);
   });
 
   onDestroy(() => {
     if (animId) cancelAnimationFrame(animId);
-    if (frameTimer) clearTimeout(frameTimer);
   });
 </script>
 
