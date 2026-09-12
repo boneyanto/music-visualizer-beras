@@ -44,9 +44,9 @@
   function renderFrame() {
     if (!canvasRef) return;
 
-    // Liberate 100% of GPU & CPU for export worker while video export is running
+    // Liberate 100% of GPU & CPU for export worker while video export is running.
+    // Completely uncouple rAF loop so Chromium compositor & DWM do NOT sync with VSync.
     if (videoExporter.isExporting) {
-      animId = requestAnimationFrame(renderFrame);
       return;
     }
 
@@ -256,6 +256,17 @@
       // Touch properties to track reactivity
       texts.forEach(t => `${t.text}-${t.fontFamily}-${t.fontSize}-${t.color}-${t.stroke}-${t.strokeWidth}-${t.strokeColor}-${t.shadow}`);
       textOverlayManager.clearCache();
+    }
+  });
+
+  $effect(() => {
+    // Zero-Overhead Render Shutter: completely halt rAF while export runs
+    if (videoExporter.isExporting) {
+      if (animId) cancelAnimationFrame(animId);
+    } else {
+      if (canvasRef) {
+        animId = requestAnimationFrame(renderFrame);
+      }
     }
   });
 
