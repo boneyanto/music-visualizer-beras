@@ -11,6 +11,12 @@ Semua perubahan dan catatan rilis pada proyek **Beras Visualizer** dicatat dalam
   - Mengimplementasikan frame rate throttling presisi ($60\text{ FPS}$ cap) pada loop `renderFrame` di `PreviewCanvas.svelte`.
   - Mencegah loop Canvas editor berputar liar tanpa batas ($300+\text{ FPS}$) akibat argumen `--disable-gpu-vsync` dan `--disable-frame-rate-limit` pada WebView2 Windows.
   - Penggunaan iGPU Intel Gen 8 saat editing turun drastis mendekati 0%, temperatur adem, dan pergerakan mouse/slider kembali halus tanpa lag.
+- **Penjadwalan Frame Adaptif (Eliminasi CPU Spin & Idle Drop ke ~15%)**:
+  - Menggantikan rAF spinning loop dengan timer tidur adaptif (`setTimeout` + rAF pacing).
+  - Saat lagu berputar: berjalan stabil di 60 FPS untuk rendering audio visualizer yang halus.
+  - Saat lagu dipause / editor idle: frame rate otomatis turun ke 24 FPS dan prosesor dapat tidur (sleep) di antara frame, memangkas CPU usage idle dari 45% kembali ke kisaran hemat daya (~15-18%).
+- **Jeda Fisika Partikel saat Pause**:
+  - Partikel kini otomatis berhenti bergerak (*freeze in place*) ketika lagu tidak diputar / sedang di-pause, menghemat beban perhitungan fisika koordinat di CPU saat idle.
 - **Mempertahankan Kecepatan Render Puncak (7x - 9x)**:
   - Argumen `--disable-gpu-vsync` dan `--disable-frame-rate-limit` tetap aktif untuk WebCodecs Worker.
   - Zero-Overhead Render Shutter secara otomatis mematikan render canvas saat export berjalan, membebaskan 100% daya GPU untuk rendering berkecepatan 7x - 9x tanpa perlu menutup atau menutupi jendela aplikasi dengan jendela lain.

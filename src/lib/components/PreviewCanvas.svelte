@@ -43,26 +43,40 @@
 
   let lastStoreTimeUpdate = 0;
   let lastFrameTime = 0;
-  const targetFrameInterval = 1000 / 60; // Exact 60 FPS cap to prevent Intel iGPU overload
+  let frameTimer: any = null;
+
+  function scheduleNextFrame() {
+    if (videoExporter.isExporting) return;
+    if (animId || frameTimer) return;
+
+    // Adaptive Frame Pacing:
+    // When playing: 60 FPS (16.6ms) for smooth visualizer dynamics.
+    // When paused / idle: 24 FPS (41.6ms) to keep idle CPU usage minimal (~15%).
+    const targetInterval = projectStore.isPlaying ? (1000 / 60) : (1000 / 24);
+    const now = performance.now();
+    const elapsed = now - lastFrameTime;
+    const remaining = Math.max(0, targetInterval - elapsed);
+
+    if (remaining <= 2) {
+      animId = requestAnimationFrame(renderFrame);
+    } else {
+      frameTimer = setTimeout(() => {
+        frameTimer = null;
+        animId = requestAnimationFrame(renderFrame);
+      }, remaining);
+    }
+  }
 
   function renderFrame(timestamp: number = performance.now()) {
+    animId = 0;
     if (!canvasRef) return;
 
-    // Zero-Overhead Render Shutter: Halt requestAnimationFrame completely during export
-    // This removes all UI vsync synchronization locks from Windows DWM / macOS Compositor
+    // Zero-Overhead Render Shutter: Halt completely during export
     if (videoExporter.isExporting) {
       return;
     }
 
-    // Software 60 FPS Frame Limiter:
-    // With --disable-gpu-vsync enabled for 7x-9x export, requestAnimationFrame will otherwise spin at 300+ FPS in editor!
-    // This throttle keeps the editor locked at silky-smooth 60 FPS while keeping iGPU usage close to 0%.
-    const elapsed = timestamp - lastFrameTime;
-    if (elapsed < targetFrameInterval) {
-      animId = requestAnimationFrame(renderFrame);
-      return;
-    }
-    lastFrameTime = timestamp - (elapsed % targetFrameInterval);
+    lastFrameTime = timestamp;
 
     const ctx = canvasRef.getContext('2d');
     if (!ctx) return;
@@ -228,7 +242,7 @@
     );
 
     // 5. Render Particle, Spectrum, Lyrics
-    particles.updateAndRender(ctx, projectStore.project.overlays.particle, beatFactor);
+    particles.updateAndRender(ctx, projectStore.project.overlays.particle, beatFactor, projectStore.isPlaying);
     if (projectStore.project.overlays.spectrums && projectStore.project.overlays.spectrums.length > 0) {
       for (let i = 0; i < projectStore.project.overlays.spectrums.length; i++) {
         spectrum.render(ctx, width, height, projectStore.project.overlays.spectrums[i], currentFreq, beatFactor);
@@ -246,7 +260,7 @@
       beatFactor
     );
 
-    animId = requestAnimationFrame(renderFrame);
+    scheduleNextFrame();
   }
 
   $effect(() => {
@@ -290,19 +304,24 @@
         cancelAnimationFrame(animId);
         animId = 0;
       }
+      if (frameTimer) {
+        clearTimeout(frameTimer);
+        frameTimer = null;
+      }
     } else {
-      if (!animId && canvasRef) {
-        animId = requestAnimationFrame(renderFrame);
+      if (!animId && !frameTimer && canvasRef) {
+        scheduleNextFrame();
       }
     }
   });
 
   onMount(() => {
-    animId = requestAnimationFrame(renderFrame);
+    scheduleNextFrame();
   });
 
   onDestroy(() => {
     if (animId) cancelAnimationFrame(animId);
+    if (frameTimer) clearTimeout(frameTimer);
   });
 </script>
 

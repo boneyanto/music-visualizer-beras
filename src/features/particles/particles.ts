@@ -189,7 +189,8 @@ export class ParticleSystem {
   updateAndRender(
     ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
     config: ParticleConfig,
-    rawBeatFactor: number = 1.0
+    rawBeatFactor: number = 1.0,
+    isMoving: boolean = true
   ) {
     if (!config.enabled) return;
 
@@ -199,35 +200,38 @@ export class ParticleSystem {
 
     const scaleFactor = Math.min(this.width / 1920, this.height / 1080);
     const sensitivity = config.beatSensitivity ?? 1.0;
-    const beatFactor = 1.0 + (rawBeatFactor - 1.0) * sensitivity;
+    // When paused, beat factor resting state is 1.0
+    const beatFactor = isMoving ? (1.0 + (rawBeatFactor - 1.0) * sensitivity) : 1.0;
 
     ctx.save();
 
+    // Zero out movement speed when music is paused
+    const effectiveConfig = isMoving ? config : { ...config, speed: 0 };
     const p = config.preset;
 
     if (p === 'bokeh') {
-      this.renderBokeh(ctx, config, beatFactor, scaleFactor);
+      this.renderBokeh(ctx, effectiveConfig, beatFactor, scaleFactor);
     } else if (p === 'confetti' || p === 'Confetti') {
-      this.renderConfetti(ctx, config, beatFactor, scaleFactor);
+      this.renderConfetti(ctx, effectiveConfig, beatFactor, scaleFactor);
     } else if (p === 'snow' || p === 'Salju' || p === 'Gentle Snow') {
-      this.renderSnow(ctx, config, beatFactor, scaleFactor);
+      this.renderSnow(ctx, effectiveConfig, beatFactor, scaleFactor);
     } else if (p === 'sparks' || p === 'Percikan Api' || p === 'Beat Spark') {
-      this.renderSparks(ctx, config, beatFactor, scaleFactor);
+      this.renderSparks(ctx, effectiveConfig, beatFactor, scaleFactor);
     } else if (p === 'Hujan Neon') {
-      this.renderNeonRain(ctx, config, beatFactor, scaleFactor);
+      this.renderNeonRain(ctx, effectiveConfig, beatFactor, scaleFactor);
     } else if (p === 'Meteor Shower') {
-      this.renderMeteor(ctx, config, beatFactor, scaleFactor);
+      this.renderMeteor(ctx, effectiveConfig, beatFactor, scaleFactor);
     } else if (p === 'Asap' || p === 'Kabut') {
-      this.renderSmoke(ctx, config, beatFactor, scaleFactor);
+      this.renderSmoke(ctx, effectiveConfig, beatFactor, scaleFactor);
     } else if (p === 'Vortex Particles' || p === 'Orbit Dust' || p === 'Galaxy Dust') {
-      this.renderVortex(ctx, config, beatFactor, scaleFactor);
+      this.renderVortex(ctx, effectiveConfig, beatFactor, scaleFactor);
     } else if (p === 'Sparkles' || p === 'Stars') {
-      this.renderSparkles(ctx, config, beatFactor, scaleFactor);
+      this.renderSparkles(ctx, effectiveConfig, beatFactor, scaleFactor);
     } else if (p === 'NCS Particles' || p === 'Particle Burst') {
-      this.renderBurst(ctx, config, beatFactor, scaleFactor);
+      this.renderBurst(ctx, effectiveConfig, beatFactor, scaleFactor);
     } else {
       // floating-dust, Bintik (Dust), Particles Rise
-      this.renderFloatingDust(ctx, config, beatFactor, scaleFactor);
+      this.renderFloatingDust(ctx, effectiveConfig, beatFactor, scaleFactor);
     }
 
     ctx.restore();
