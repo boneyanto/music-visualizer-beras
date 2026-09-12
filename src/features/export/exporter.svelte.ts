@@ -1,5 +1,5 @@
 import { projectStore } from '../../lib/stores/project.svelte';
-import { isDesktop } from '../../lib/utils/platform';
+import { isDesktop, isWindows, setWindowTitle, minimizeWindow, unminimizeWindow } from '../../lib/utils/platform';
 import { backgroundManager } from '../backdrop';
 import { videoOverlayManager } from '../overlays';
 import { fontManager } from '../texts';
@@ -9,6 +9,9 @@ import { licenseManager } from '../licensing';
 export class VideoExporter {
   private worker: Worker | null = null;
   private timerInterval: any = null;
+  public autoMinimizeOnWindows = $state<boolean>(
+    typeof localStorage !== 'undefined' ? localStorage.getItem('export_auto_minimize') === 'true' : false
+  );
   public stage = $state<'preparing' | 'encoding' | 'encoding_audio' | 'finalizing'>('preparing');
   public isExporting = $state<boolean>(false);
   public progress = $state<number>(0);
@@ -20,6 +23,13 @@ export class VideoExporter {
   public elapsedSeconds = $state<number>(0);
   public finalRenderTimeSeconds = $state<number>(0);
   public errorMessage = $state<string | null>(null);
+
+  public toggleAutoMinimize(enabled: boolean) {
+    this.autoMinimizeOnWindows = enabled;
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem('export_auto_minimize', enabled ? 'true' : 'false');
+    }
+  }
 
   startExport(): Promise<Blob> {
     return new Promise(async (resolve, reject) => {
@@ -74,6 +84,11 @@ export class VideoExporter {
             this.currentFPS = data.currentFPS || 0;
             this.speedMultiplier = data.speedMultiplier || 1.0;
             this.etaSeconds = data.etaSeconds || 0;
+
+            // Live taskbar title updates so user can monitor progress even when minimized/occluded
+            const percent = Math.round(data.progress * 100);
+            const etaText = data.etaSeconds > 0 ? ` - ETA ${Math.floor(data.etaSeconds / 60)}m${data.etaSeconds % 60}s` : '';
+            setWindowTitle(`[${percent}%] Beras Visualizer (${data.currentFPS || 0} FPS${etaText})`);
           }
         } else if (data.type === 'COMPLETE') {
           this.stage = 'finalizing';
@@ -82,6 +97,11 @@ export class VideoExporter {
           const totalRenderMs = renderStartTime > 0 ? (performance.now() - renderStartTime) : (this.elapsedSeconds * 1000);
           this.finalRenderTimeSeconds = Math.max(1, Math.round(totalRenderMs / 1000));
           this.cleanup();
+
+          setWindowTitle('Beras Visualizer - Selesai!');
+          if (this.autoMinimizeOnWindows && isWindows()) {
+            unminimizeWindow();
+          }
 
           const blob: Blob = data.blob instanceof Blob ? data.blob : new Blob([data.buffer], { type: 'video/mp4' });
 
@@ -97,10 +117,18 @@ export class VideoExporter {
           this.isExporting = false;
           this.errorMessage = data.message;
           this.cleanup();
+          setWindowTitle('Beras Visualizer');
+          if (this.autoMinimizeOnWindows && isWindows()) {
+            unminimizeWindow();
+          }
           reject(new Error(data.message));
         } else if (data.type === 'CANCELLED') {
           this.isExporting = false;
           this.cleanup();
+          setWindowTitle('Beras Visualizer');
+          if (this.autoMinimizeOnWindows && isWindows()) {
+            unminimizeWindow();
+          }
           reject(new Error('Export was cancelled'));
         }
       };
@@ -231,6 +259,14 @@ export class VideoExporter {
         fontBuffers,
         isLicensed: shouldRenderWatermarkFree,
       }, transferables);
+
+      if (this.autoMinimizeOnWindows && isWindows()) {
+        setTimeout(() => {
+          if (this.isExporting) {
+            minimizeWindow();
+          }
+        }, 150);
+      }
 
     });
   }

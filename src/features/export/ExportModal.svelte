@@ -14,12 +14,14 @@
     Gauge,
     Hourglass,
     Zap,
+    Minimize2,
     Maximize2,
     Clock,
     ShieldAlert,
     Lock
   } from '@lucide/svelte';
   import { licenseManager } from '../licensing';
+  import { isWindows } from '../../lib/utils/platform';
 
   interface Props {
     onOpenLicense?: () => void;
@@ -274,6 +276,28 @@
                 </button>
               </div>
             </div>
+
+            <!-- Windows Turbo Mode: Auto-minimize toggle with warning -->
+            {#if isWindows()}
+              <div class="mt-3 p-2.5 rounded-xl bg-cyan-950/20 border border-cyan-800/40 text-xs flex flex-col gap-2">
+                <label class="flex items-center gap-2.5 cursor-pointer select-none">
+                  <input 
+                    type="checkbox"
+                    checked={videoExporter.autoMinimizeOnWindows}
+                    onchange={(e) => videoExporter.toggleAutoMinimize(e.currentTarget.checked)}
+                    class="rounded border-neutral-700 text-cyan-500 focus:ring-cyan-500/20 bg-neutral-900 w-4 h-4 cursor-pointer accent-cyan-500"
+                  />
+                  <div class="flex items-center gap-1.5 font-semibold text-cyan-300 text-[11px]">
+                    <Zap class="w-3.5 h-3.5 text-cyan-400" />
+                    Mode Turbo Windows (Auto-minimize saat render)
+                  </div>
+                </label>
+                <div class="text-[10px] text-neutral-400 pl-6 leading-relaxed">
+                  ⚠️ <b>Perhatian:</b> Jendela aplikasi akan otomatis diminimize ke taskbar agar GPU tidak terbatasi oleh VSync layar. 
+                  Anda tetap dapat memantau progres render secara live langsung dari <b class="text-neutral-300">judul jendela di Taskbar Windows</b>. Jendela otomatis terbuka kembali saat selesai.
+                </div>
+              </div>
+            {/if}
           </div>
         {:else}
           <!-- Video Specs Card During Render -->

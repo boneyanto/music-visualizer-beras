@@ -78,6 +78,23 @@ fn save_text_file(app: tauri::AppHandle, filename: String, content: String) -> R
 }
 
 #[tauri::command]
+fn set_window_title(window: tauri::Window, title: String) -> Result<(), String> {
+  window.set_title(&title).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn minimize_window(window: tauri::Window) -> Result<(), String> {
+  window.minimize().map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn unminimize_window(window: tauri::Window) -> Result<(), String> {
+  window.unminimize().map_err(|e| e.to_string())?;
+  let _ = window.set_focus();
+  Ok(())
+}
+
+#[tauri::command]
 fn open_external_url(url: String) -> Result<(), String> {
   // First try the cross-platform `open` crate
   if open::that(&url).is_ok() {
@@ -123,6 +140,9 @@ pub fn run() {
     .invoke_handler(tauri::generate_handler![
       save_video_chunk,
       save_text_file,
+      set_window_title,
+      minimize_window,
+      unminimize_window,
       open_external_url,
       license::get_license_info,
       license::consume_free_export_quota,

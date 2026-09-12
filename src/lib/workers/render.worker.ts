@@ -296,7 +296,9 @@ self.onmessage = async (e: MessageEvent<RenderRequest | { type: 'CANCEL' }>) => 
     const defaultBitrate = width <= 1280 ? 8_000_000 : 14_000_000;
     const isMac = typeof navigator !== 'undefined' && /Macintosh|Mac OS X|iPhone|iPad/i.test(navigator.userAgent || '');
 
-    // WebCodecs VideoEncoder: 'quality' on Apple Silicon VideoToolbox for max parallel throughput (7x-12x)
+    // WebCodecs VideoEncoder: Set latencyMode to 'quality' on ALL platforms (Mac & Windows).
+    // CRITICAL: On Windows Media Foundation, 'realtime' clamps encoder pacing to display refresh rate (60 FPS).
+    // Using 'quality' enables full unconstrained offline hardware transcode speed (7x-12x+).
     videoEncoder.configure({
       codec: configuredCodec,
       width,
@@ -304,14 +306,13 @@ self.onmessage = async (e: MessageEvent<RenderRequest | { type: 'CANCEL' }>) => 
       bitrate: videoBitrate || defaultBitrate,
       framerate: fps,
       hardwareAcceleration: 'prefer-hardware',
-      latencyMode: isMac ? 'quality' : 'realtime',
+      latencyMode: 'quality',
     } as any);
 
-    // Setup zero-latency ondequeue backpressure (pure microsecond resolution on Mac, buffered on Windows)
-    // Threshold clamped to 6 (Mac) and 3 (Windows) to aggressively drain hardware textures from VRAM
+    // Setup zero-latency ondequeue backpressure to prevent VRAM overflow while keeping pipeline saturated
     let queueDrainResolver: (() => void) | null = null;
     videoEncoder.ondequeue = () => {
-      const threshold = isMac ? 6 : 3;
+      const threshold = isMac ? 6 : 4;
       if (queueDrainResolver && videoEncoder.encodeQueueSize <= threshold) {
         const resolve = queueDrainResolver;
         queueDrainResolver = null;
@@ -483,8 +484,8 @@ self.onmessage = async (e: MessageEvent<RenderRequest | { type: 'CANCEL' }>) => 
 
         // 8. Platform-optimized GPU Queue Backpressure
         // VideoToolbox on Apple Silicon reaches peak 7x-9x+ efficiency with a 16-frame depth
-        // Windows iGPU/dGPU is kept safely bounded at 8 frames to prevent memory explosion
-        const maxQueue = isMac ? 16 : 8;
+        // Windows iGPU/dGPU is set to 12 frames for smooth unconstrained throughput without VRAM spikes
+        const maxQueue = isMac ? 16 : 12;
         if (videoEncoder.encodeQueueSize >= maxQueue) {
           await new Promise<void>((resolve) => {
             queueDrainResolver = resolve;

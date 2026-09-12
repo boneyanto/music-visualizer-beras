@@ -4,6 +4,25 @@ Semua perubahan dan catatan rilis pada proyek **Beras Visualizer** dicatat dalam
 
 ---
 
+## [v3.2.0] - 2026-09-12
+
+### ⚡ Mode Turbo Windows (Auto-Minimize), Live Taskbar Telemetry & Pembekuan Partikel saat Pause
+- **Mode Turbo Windows Opsional & Aman (Auto-Minimize)**:
+  - Menambahkan toggle checkbox opsional khusus sistem Windows pada modal ekspor: `⚡ Mode Turbo Windows (Auto-minimize saat render)`.
+  - Jika diaktifkan, jendela aplikasi otomatis diminimize ke taskbar sesaat setelah render dimulai untuk melepaskan batasan VSync Desktop Window Manager (DWM) sehingga GPU render worker dapat melesat pada kecepatan maksimal.
+  - Jendela otomatis dipulihkan/dibuka kembali ke layar depan (*auto-unminimize*) saat render selesai.
+- **Pemantauan Progres Langsung dari Judul Taskbar Windows**:
+  - Judul jendela kini secara dinamis diperbarui secara *real-time* selama proses render berjalan (contoh: `[45%] Beras Visualizer (180 FPS - ETA 0m25s)`).
+  - Pengguna tetap dapat mengintip dan memantau persentase, FPS, dan estimasi waktu selesai langsung dari taskbar tanpa perlu membuka jendela aplikasi.
+- **Akselerasi Penuh WebCodecs Windows (Unconstrained Offline Speed)**:
+  - Mengatur `latencyMode: 'quality'` pada encoder WebCodecs untuk seluruh platform, melepaskan batasan 60 FPS dari Windows Media Foundation.
+  - Menyesuaikan batas antrean GPU (`maxQueue = 12`) untuk memastikan saturasi pipeline GPU optimal tanpa risiko lonjakan VRAM.
+- **Pembekuan Partikel Saat Playback Dijeda (*Freeze on Pause*)**:
+  - Memperbaiki pengoperan status playback (`isPlaying`) ke engine partikel pada `PreviewCanvas.svelte`.
+  - Saat lagu dijeda (pause), vektor kecepatan partikel dibekukan di tempat dan langsung melanjutkan pergerakan alaminya kembali saat musik diputar ulang.
+
+---
+
 ## [v3.1.9] - 2026-09-12
 
 ### ❄️ Restorasi Murni Formula v3.1.1 (Occlusion Background Render & 0% Lag Editor)
