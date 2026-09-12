@@ -205,7 +205,21 @@ export class ParticleSystem {
 
     ctx.save();
 
-    // Zero out movement speed when music is paused
+    // When paused, temporarily zero out velocities so NO particles advance their coordinates!
+    let savedVelocities: Float32Array | null = null;
+    if (!isMoving) {
+      savedVelocities = new Float32Array(this.particles.length * 3);
+      for (let i = 0; i < this.particles.length; i++) {
+        const pt = this.particles[i];
+        savedVelocities[i * 3] = pt.vx;
+        savedVelocities[i * 3 + 1] = pt.vy;
+        savedVelocities[i * 3 + 2] = pt.vRot;
+        pt.vx = 0;
+        pt.vy = 0;
+        pt.vRot = 0;
+      }
+    }
+
     const effectiveConfig = isMoving ? config : { ...config, speed: 0 };
     const p = config.preset;
 
@@ -232,6 +246,16 @@ export class ParticleSystem {
     } else {
       // floating-dust, Bintik (Dust), Particles Rise
       this.renderFloatingDust(ctx, effectiveConfig, beatFactor, scaleFactor);
+    }
+
+    // Restore particle velocities if they were zeroed out
+    if (savedVelocities) {
+      for (let i = 0; i < this.particles.length; i++) {
+        const pt = this.particles[i];
+        pt.vx = savedVelocities[i * 3];
+        pt.vy = savedVelocities[i * 3 + 1];
+        pt.vRot = savedVelocities[i * 3 + 2];
+      }
     }
 
     ctx.restore();

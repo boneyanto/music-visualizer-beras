@@ -22,6 +22,13 @@ Semua perubahan dan catatan rilis pada proyek **Beras Visualizer** dicatat dalam
   - Zero-Overhead Render Shutter secara otomatis mematikan render canvas saat export berjalan, membebaskan 100% daya GPU untuk rendering berkecepatan 7x - 9x tanpa perlu menutup atau menutupi jendela aplikasi dengan jendela lain.
 - **Dropdown Style Visualizer Bebas Lag**:
   - Menghilangkan two-way binding agresif (`bind:value`) pada pilihan spektrum di `SpectrumPanel.svelte`, digantikan dengan controlled value + discrete change handler dan debounced save (800ms) agar navigasi menu responsif instan.
+- **Zero-Idle CPU Sleep Saat Lagu Dijeda / Paused**:
+  - Loop render canvas kini sepenuhnya diistirahatkan (*full sleep mode*) ketika lagu tidak diputar.
+  - Menghilangkan komputasi refresh layar berulang yang sia-sia saat editor idle, mengembalikan penggunaan CPU ke titik terendah (idle murni).
+  - Canvas secara cerdas hanya me-render 1 frame instan saat pengguna menggeser scrubber timeline atau mengubah konfigurasi di panel, lalu kembali tidur.
+- **Pembekuan Total Fisika Partikel (*True Freeze in Place*)**:
+  - Membekukan vektor kecepatan (`vx`, `vy`, `vRot`) seluruh partikel secara langsung saat musik dijeda, menjamin partikel 100% berhenti mematung di layar tanpa ada drift pergerakan sama sekali.
+  - Kecepatan dan arah asli partikel dipulihkan secara instan saat lagu kembali diputar.
 - **Koleksi Lengkap Spektrum & Partikel**:
   - Mempertahankan 100% seluruh koleksi 100+ style spektrum visualizer matematika, Avant-Garde, Quantum Physics, serta seluruh preset partikel tanpa ada yang dipangkas.
 

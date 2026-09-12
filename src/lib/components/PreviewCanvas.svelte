@@ -49,10 +49,14 @@
     if (videoExporter.isExporting) return;
     if (animId || frameTimer) return;
 
-    // Adaptive Frame Pacing:
-    // When playing: 60 FPS (16.6ms) for smooth visualizer dynamics.
-    // When paused / idle: 24 FPS (41.6ms) to keep idle CPU usage minimal (~15%).
-    const targetInterval = projectStore.isPlaying ? (1000 / 60) : (1000 / 24);
+    // Power-Saving Idle Sleep:
+    // When playing: schedule 60 FPS (16.6ms) for smooth playback.
+    // When paused / idle: do NOT loop continuously! The canvas is completely at rest (0% CPU).
+    if (!projectStore.isPlaying) {
+      return;
+    }
+
+    const targetInterval = 1000 / 60;
     const now = performance.now();
     const elapsed = now - lastFrameTime;
     const remaining = Math.max(0, targetInterval - elapsed);
@@ -64,6 +68,14 @@
         frameTimer = null;
         animId = requestAnimationFrame(renderFrame);
       }, remaining);
+    }
+  }
+
+  // Force render a single frame on demand (e.g. when paused and user tweaks sliders)
+  function requestSingleRender() {
+    if (videoExporter.isExporting) return;
+    if (!animId && !frameTimer) {
+      animId = requestAnimationFrame(renderFrame);
     }
   }
 
@@ -309,14 +321,39 @@
         frameTimer = null;
       }
     } else {
-      if (!animId && !frameTimer && canvasRef) {
-        scheduleNextFrame();
-      }
+      requestSingleRender();
+    }
+  });
+
+  // Wake up loop when user clicks Play / Pause
+  $effect(() => {
+    if (projectStore.isPlaying) {
+      scheduleNextFrame();
+    } else {
+      // Render one final frame so the pause state visually matches
+      requestSingleRender();
+    }
+  });
+
+  // Re-render single frame whenever currentTime is scrubbed while paused
+  $effect(() => {
+    const _t = projectStore.currentTime;
+    if (!projectStore.isPlaying) {
+      requestSingleRender();
+    }
+  });
+
+  // Re-render single frame when overlays or settings change while paused
+  $effect(() => {
+    // Touch reactive properties
+    const _p = projectStore.project;
+    if (!projectStore.isPlaying) {
+      requestSingleRender();
     }
   });
 
   onMount(() => {
-    scheduleNextFrame();
+    requestSingleRender();
   });
 
   onDestroy(() => {
