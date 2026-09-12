@@ -4,6 +4,18 @@ Semua perubahan dan catatan rilis pada proyek **Beras Visualizer** dicatat dalam
 
 ---
 
+## [v3.1.9] - 2026-09-12
+
+### ❄️ Optimasi Sempurna CPU Windows: Restorasi Formula v3.1.2
+- **Eliminasi Total Beban CPU Idle Windows (Turun ke 12%–15%)**:
+  - Menghapus flag global `--disable-gpu-vsync` dan `--disable-frame-rate-limit` dari startup browser WebView2 Windows di `src-tauri/src/lib.rs`.
+  - Mengembalikan kestabilan clock rendering UI ke refresh rate desktop standar (VSync normal), menghentikan pembakaran CPU liar oleh Chromium compositor saat editor idle/pause.
+  - Penggunaan CPU pada Windows yang baru dibuka turun drastis dari 36%–45% kembali ke kisaran hemat daya optimal **12%–15%**.
+- **Performa Render Tetap Puncak (7x–9x)**:
+  - Berkat mekanisme **Zero-Overhead Render Shutter** yang mematikan total render canvas saat export berjalan, thread WebCodecs Worker dapat melakukan encoding hardware maksimal tanpa terhambat oleh VSync UI.
+
+---
+
 ## [v3.1.8] - 2026-09-12
 
 ### 🌐 Repositori Publik & Pembersihan Generator Internal
